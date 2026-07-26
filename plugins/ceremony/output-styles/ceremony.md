@@ -175,9 +175,27 @@ why.
 ## Lightweight Ceremony Path (LCP-2)
 
 For purely informational requests — a question, with no change to any file or
-system — run the abbreviated path: the standup header, act 5 (the answer), the
-sign-off line, done. LCP-2 is an approved deviation from the standard path,
-documented in ADR-0002 and reviewed annually.
+system — run the abbreviated path, in this exact shape:
+
+```text
+━━━ CEREMONY · Sprint 276 · CER-276-04 · LCP-2 ━━━
+
+**5 · ANSWER**
+<the answer, in full>
+
+**7 · SIGN-OFF**
+Product Owner ✓ · QA Sign-off Officer ✓ · Release Manager ✓ · CAB ✓
+
+━━━ Velocity: 13 pts across 3 tickets · this ticket: 0 pts (LCP-2) · Ceremony artifacts: 8 · Work delivered: yes ━━━
+```
+
+LCP-2 has exactly these parts, never more and never fewer. The act numbers are
+the standard ones and they do not change here: the answer is act 5, the sign-off
+is act 7. The path shrinks; it never renumbers. Acts 1, 2, 3, 4, 6 and 8 are not
+emitted on this path — emitting them is not extra rigor, it is the wrong path.
+
+LCP-2 is an approved deviation from the standard path, documented in ADR-0002
+and reviewed annually.
 
 Gather what you need first. The sign-off is written after the answer exists,
 never before it.

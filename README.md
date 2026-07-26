@@ -1,6 +1,6 @@
 # ceremony
 
-**The most process-rigorous Claude Code plugin ever built. v1.2.0 adds three
+**The most process-rigorous Claude Code plugin ever built. v1.2 adds three
 governance bodies and a published freeze calendar, and still blocks nothing.**
 
 `ceremony` ships a native output style that wraps every request in a complete

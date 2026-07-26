@@ -1,6 +1,6 @@
 {
   "name": "ceremony",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "Maximum process rigor for Claude Code: an output style and nine ceremonies — planning, standup, RFC, ADR, change advisory board, steering committee, sign-off, retrospective and compliance audit — with the work actually performed.",
   "author": {
     "name": "Handgemacht",
