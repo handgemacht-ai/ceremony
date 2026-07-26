@@ -64,6 +64,8 @@ Objectives
 O1. <objective> — drafted from <file>
 O2. <objective> — drafted from <file>
 O3. <objective> — drafted from <file>
+Objectives drafted in this meeting from repository contents. No organisational
+OKR document was consulted, and none is claimed to exist.
 
 Alignment
 O1: <Direct | Indirect | None> — <the observable link, or "no link found">
@@ -86,3 +88,7 @@ Budget impact: <finding>
 
 Next steering committee: <first day of the next fiscal quarter>
 ```
+
+The disclosure line under O3 is part of the template. Minutes without it are not
+minutes. Replace it only when a real strategy, roadmap or OKR document in this
+repository was read, and then name that file.

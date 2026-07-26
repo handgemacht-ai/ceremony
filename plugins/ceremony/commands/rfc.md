@@ -88,7 +88,8 @@ file. End with exactly one line:
 Write this to docs/rfc/NNNN-<slug>.md? (not written yet)
 
 `NNNN` is the number established in section 3. Persist it only in a later turn,
-after the user says yes.
+after the user says yes. Creating the directory is persisting. The directory is
+created in the same later turn as the file, never before.
 
 ## Note
 

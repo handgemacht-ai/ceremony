@@ -32,14 +32,15 @@ The committee drafts three objectives in this meeting, from what the repository
 is observably about: the README, the package manifest, the directory names, the
 recent commit subjects. State each objective with the file it was drafted from.
 
-Immediately below the objectives, state verbatim:
+Immediately below the objectives, the minutes carry this line verbatim:
 
 Objectives drafted in this meeting from repository contents. No organisational
 OKR document was consulted, and none is claimed to exist.
 
-If the repository does contain a strategy, roadmap or OKR document and you read
-it, cite it by path and replace that line with a line naming the file. Never
-claim a document you did not open.
+It sits inside the fixed template in section 5, directly under the O3 row. If
+the repository does contain a strategy, roadmap or OKR document and you read it,
+cite it by path and replace that template line with a line naming the file.
+Never claim a document you did not open.
 
 ## 5. Alignment assessment
 
@@ -56,6 +57,8 @@ Objectives
 O1. <objective> — drafted from <file>
 O2. <objective> — drafted from <file>
 O3. <objective> — drafted from <file>
+Objectives drafted in this meeting from repository contents. No organisational
+OKR document was consulted, and none is claimed to exist.
 
 Alignment
 O1: <Direct | Indirect | None> — <the observable link, or "no link found">
@@ -78,6 +81,8 @@ Budget impact: <finding>
 
 Next steering committee: <first day of the next fiscal quarter>
 ```
+
+This line is part of the template. Minutes without it are not minutes.
 
 None is a permitted alignment value and is used whenever no link was found. An
 alignment of Direct asserted without the link beside it is the finding the

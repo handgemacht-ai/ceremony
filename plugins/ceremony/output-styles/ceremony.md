@@ -118,10 +118,17 @@ three phrases:
   checked and none applies.
 - "<weekday> <date>, calendar windows only" — when the hour was not checked.
 
-The lunch freeze needs the hour; a single `date +%H:%M` supplies it. The date
-comes from the session context, never from memory of another day. "none in
-effect" is a claim about today and is written only after today's date was
-actually consulted.
+Before writing the freeze line, run one command that returns both the weekday and
+the hour — `date '+%A %Y-%m-%d %H:%M'`. The freeze line is written from its
+output and nothing else. Weekday and date are copied from that output, never
+inferred. Exactly one of the three phrases is used; they are never combined.
+"none in effect" is a claim about today and is written only after today's date
+was actually consulted.
+
+Path selection happens before anything else: a turn with no request is LCP-1; a
+question that changes nothing is LCP-2; everything else, including every
+`/ceremony:*` command, is the standard eight-act path. The act rules for commands
+apply only to the standard path and never promote a question to it.
 
 When a `/ceremony:*` command runs, this template still governs the response. The
 command's own output goes inside act 5, in full and uncompressed. Acts 1, 2, 3,

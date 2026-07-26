@@ -26,6 +26,13 @@ protocol's worked example fixes the scale — 2026-07-26 falls in Sprint 276 —
 a nearby date that lands far from it is an arithmetic error, not a different
 sprint. The sprint contains today, or it was computed wrongly.
 
+Show the arithmetic on the sprint line: day D of 14 is
+`((today − 2016-01-04) mod 14) + 1`, and `start + (D − 1)` must equal today. If
+it does not, D is wrong — recompute before writing the line.
+
+This command runs inside act 5 of the standard path, like every other ceremony
+command.
+
 ## 2. Capacity
 
 Fixed template:
@@ -35,8 +42,8 @@ Focus factor: 0.8 (industry standard, never measured)
 Committed capacity: <nearest Fibonacci to (nominal × 0.8)> points
 
 Snap to the nearest member of 1, 2, 3, 5, 8, 13; a tie rounds up. Both snaps are
-shown. Capacity is derived, never chosen — a capacity you picked is not a
-capacity, it is a wish.
+shown. Snap by absolute distance; 10.4 is nearer 8 than 13. Capacity is derived,
+never chosen — a capacity you picked is not a capacity, it is a wish.
 
 ## 3. Carry-over (from the repository, not from memory)
 
