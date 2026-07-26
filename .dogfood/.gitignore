@@ -1,0 +1,3 @@
+# Local-only dogfood Claude Code config: credentials, session transcripts,
+# and other runtime state. Never commit this.
+config/

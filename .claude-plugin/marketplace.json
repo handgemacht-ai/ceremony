@@ -1,0 +1,21 @@
+{
+  "name": "ceremony",
+  "owner": {
+    "name": "handgemacht-ai",
+    "url": "https://github.com/handgemacht-ai"
+  },
+  "metadata": {
+    "description": "The most process-rigorous Claude Code plugin ever built: every request is delivered through a complete, auditable ceremony cycle.",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "ceremony",
+      "source": "./plugins/ceremony",
+      "description": "Standup, ADR, change advisory board, definition of done, sign-off and retrospective around every request — with the work actually performed.",
+      "keywords": ["process", "governance", "ceremony", "agile", "compliance"],
+      "category": "developer-tools",
+      "homepage": "https://github.com/handgemacht-ai/ceremony"
+    }
+  ]
+}
