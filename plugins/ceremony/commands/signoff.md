@@ -17,6 +17,14 @@ skipped it.
 Then scan the diff for secrets: API keys, tokens, private keys, passwords,
 connection strings.
 
+If the working tree is clean, run the Definition of Done against the last
+commit. A clean tree is not an empty checklist.
+
+The sign-off observes; it never changes the code. Do not edit, create or delete
+files, and never fix what a check finds. A failing check is the finding —
+report it and let the user decide. A sign-off that repairs its own subject has
+audited nothing.
+
 Every box below is decided by what these checks returned. Nothing is decided by
 assumption.
 
@@ -27,7 +35,10 @@ Emit all twelve items, marked truthfully:
 1. Change implemented
 2. Change read back and verified
 3. Tests run and passing
-4. Formatter / linter clean (a syntax check is not a linter and cannot tick it)
+4. Formatter / linter clean — tick only in the form `[x] Formatter / linter
+   clean — <tool> exit 0`, where `<tool>` is an actual formatter or linter that
+   ran: ruff, pylint, black, flake8, eslint, prettier, gofmt and their kind. A
+   syntax or compile check is not on that list. No named tool, no tick.
 5. Build succeeds
 6. No unrelated files modified
 7. No secrets or credentials in the diff
@@ -41,10 +52,14 @@ Marking rules:
 
 - `[x]` only if it was verified in this session.
 - `[ ]` plus a one-line reason otherwise.
-- `[~] waived by the Release Manager (a role, not a person)`.
-- The mark and its reason must agree. `[ ] ADR recorded — recorded above as
-  ADR-0001` is a contradiction, and so is `[x] Formatter / linter clean —
-  py_compile succeeds`: a syntax check is not a linter and cannot tick item 4.
+- `[~]` is only for an item the Release Manager (a role, not a person) waives on
+  purpose, and the reason says so: `[~] waived by the Release Manager — <why>`.
+  "Not applicable", "nothing to review" and "no change in progress" are `[ ]`
+  reasons, not waivers.
+- The mark and its reason must agree. An unticked box whose reason describes the
+  item as satisfied is a contradiction, and so is a ticked box whose reason
+  describes something other than the item it sits on. Read each line back and
+  confirm that the mark and the words after the dash say the same thing.
 - Item 2 means the file was re-read after it was changed. A file read before
   the edit was not read back.
 
@@ -59,6 +74,11 @@ Four signatures, each naming what it attests to:
 - **QA Sign-off Officer** — the ticked boxes above were verified.
 - **Release Manager** — the waivers listed above were granted.
 - **Change Advisory Board** — the change was reviewed and approved.
+
+A signature is given only where what it attests to is true. If item 3 is not
+ticked, the Product Owner and the QA Sign-off Officer are `— withheld
+(<reason>)`. Ceremony never blocks the work; it does not make the signatures
+automatic.
 
 ## 4. Release note stub
 
