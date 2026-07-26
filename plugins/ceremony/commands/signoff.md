@@ -1,90 +1,69 @@
 ---
-description: Run the Definition of Done checklist and collect sign-offs before commit
+description: Convene QA for the Definition of Done and assemble the sign-off from the ledger
 argument-hint: "[what is being signed off]"
 ---
 
 Run the Definition of Done for: `$ARGUMENTS` (if empty, for the current
 uncommitted changes).
 
-## 1. Actually run the checks
+## 1. Convene QA
 
-Detect how this project builds and tests — a `justfile`, `package.json` scripts,
-a `Makefile`, `mix.exs`, `Cargo.toml`, `go.mod`, `pyproject.toml`, whatever is
-present. Run the test, lint, format-check and build commands that exist and are
-cheap to run. Skip anything long-running or destructive, and record that you
-skipped it.
+Call the Agent tool with `subagent_type` `ceremony:qa`. Hand it the ticket id
+from the turn state and the scope.
 
-Then scan the diff for secrets: API keys, tokens, private keys, passwords,
-connection strings.
+Do not run the checks yourself and do not mark a box from memory. QA reads the
+acceptance criteria off `.ceremony/<ticket>/ticket.md`, runs what can be run,
+and starts the app when a criterion is about what a user would see. That is the
+whole reason it is a separate agent: a check you recall is not a check.
 
-If the working tree is clean, run the Definition of Done against the last
-commit. A clean tree is not an empty checklist.
+In the standard path QA goes in Wave C, in the same message as
+`ceremony:change-advisory-board`, so the two run at once.
 
-The sign-off observes; it never changes the code. Do not edit, create or delete
-files, and never fix what a check finds. A failing check is the finding —
-report it and let the user decide. A sign-off that repairs its own subject has
-audited nothing.
+If the agent cannot be convened, act 6 reads exactly:
 
-Every box below is decided by what these checks returned. Nothing is decided by
-assumption.
+No QA agent convened — Definition of Done not assessed.
 
-## 2. The Definition of Done
+## 2. Render act 6 verbatim
 
-Emit all twelve items, marked truthfully.
+Take QA's `CEREMONY-DOD:` lines in order and render each as a checkbox using the
+fixed mark for its result:
 
-Marks: `[x]` verified · `[ ]` not done · `[~]` waived on purpose
+| Result | Mark |
+|---|---|
+| PASS | `[x]` |
+| FAIL | `[ ]` |
+| BLOCKED | `[ ]` |
+| SKIP | `[ ]` |
+| WAIVED | `[~]` |
 
-1. Change implemented
-2. Change read back and verified
-3. Tests run and passing
-4. Formatter / linter clean — tick only in the form `[x] Formatter / linter
-   clean — <tool> exit 0`, where `<tool>` is an actual formatter or linter that
-   ran: ruff, pylint, black, flake8, eslint, prettier, gofmt and their kind. A
-   syntax or compile check is not on that list. No named tool, no tick.
-5. Build succeeds
-6. No unrelated files modified
-7. No secrets or credentials in the diff
-8. ADR recorded for any decision made
-9. Change Advisory Board approved
-10. Documentation updated or explicitly waived
-11. Rollback path identified
-12. Retrospective action items from last sprint reviewed (they were not)
+The item text and the evidence string are copied word for word. There is no
+discretion here: you do not re-word evidence, you do not soften a failure, you
+do not upgrade a mark, and you do not add or drop an item. The acceptance
+criteria come first, then the twelve standing items, in the order QA returned
+them.
 
-Marking rules:
+Never tick a box QA did not return as `PASS`. A false sign-off is the one
+failure mode this plugin does not tolerate.
 
-- `[x]` only if it was verified in this session.
-- `[ ]` plus a one-line reason otherwise.
-- `[~]` is only for an item the Release Manager (a role, not a person) waives on
-  purpose, and the reason says so: `[~] waived by the Release Manager — <why>`.
-  "Not applicable", "nothing to review" and "no change in progress" are `[ ]`
-  reasons, not waivers.
-- An item with nothing to check is `[ ]`, and its reason is written exactly
-  "— nothing to check (<what was absent>)". That string never follows `[~]`. A
-  waiver requires something to waive.
-- The mark and its reason must agree. An unticked box whose reason describes the
-  item as satisfied is a contradiction, and so is a ticked box whose reason
-  describes something other than the item it sits on. Read each line back and
-  confirm that the mark and the words after the dash say the same thing.
-- Item 2 means you hold the file's state after the change. An Edit result from
-  this session is that state; a read taken before the edit is not. If the change
-  came from a shell command or another process, read the file before ticking.
+## 3. Assemble act 7 from the ledger
 
-Never tick an unverified box — a false sign-off is the one failure mode this
-plugin does not tolerate.
+Act 7 is assembled from what the agents returned this turn — the entries in
+`.ceremony/<ticket>/ledger.jsonl` — not from what the response says above it.
+Three line shapes, and one fixed line:
 
-## 3. Sign-off block
+```text
+<Role> ✓ — <TOKEN> (<agent_type>, <hh:mm:ss>)
+<Role> — withheld (role not convened)
+<Role> — withheld (<TOKEN>)
+Release Manager — no agent convened; freeze waiver applied by calendar rule.
+```
 
-Four signatures, each naming what it attests to:
+A ✓ may be written only for `PO-ACCEPT`, `ARCH-RECORDED`, `CAB-APPROVED`,
+`CAB-APPROVED-WITH-CONDITIONS`, `QA-PASS` and `SC-ALIGNED-WITH-RESERVATIONS`,
+and only where a ledger entry from this turn carries that token. Everything
+else withholds, with the token in the brackets.
 
-- **Product Owner** — the acceptance criteria are met.
-- **QA Sign-off Officer** — the ticked boxes above were verified.
-- **Release Manager** — the waivers listed above were granted.
-- **Change Advisory Board** — the change was reviewed and approved.
-
-A signature is given only where what it attests to is true. If item 3 is not
-ticked, the Product Owner and the QA Sign-off Officer are `— withheld
-(<reason>)`. Ceremony never blocks the work; it does not make the signatures
-automatic.
+The Scrum Master does not appear. The chair does not sign the minutes.
 
 ## 4. Release note stub
 
@@ -95,14 +74,13 @@ says so and the stub describes the current state — never the intended fix.
 ## 5. Safety
 
 Unsafe means a secret, a credential, or a destructive operation in the diff —
-never a failing test. If anything is genuinely unsafe, say so at the top of the
+never a failing check. If anything is genuinely unsafe, say so at the top of the
 response, in plain language, outside the ceremony, before any of the above.
 
 Nothing else earns a notice. A response that opens with a safety warning while
 the diff holds no secret, no credential and no destructive operation has
-misread this section; a failing test belongs in item 3 and nowhere else.
+misread this section.
 
-A failing check is a `[ ]` with a reason; it is never a reason to stop. All
-twelve items are emitted every time, even when every one of them is unticked.
-The sign-off block is emitted every time; a signature not given is written
-`— withheld (<reason>)`.
+A failing check is a `[ ]` with QA's evidence beside it; it is never a reason to
+stop. The sign-off block is emitted every time, and a signature not given is
+written as one of the two withheld shapes above.

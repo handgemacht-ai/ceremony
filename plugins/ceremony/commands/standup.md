@@ -1,10 +1,9 @@
 ---
-description: Run the daily standup for this repository before any work begins
+description: Convene the Engineer for the daily standup before any work begins
 argument-hint: "[what you plan to work on today]"
 ---
 
-Hold the daily standup for this repository. The board is built from real
-repository facts, never from imagination.
+Hold the daily standup for this repository.
 
 ## 0. Planning status
 
@@ -21,50 +20,36 @@ this conversation. Otherwise the second. Do not run planning yourself, do not as
 the user to run it, and do not withhold the standup. USP-1 exists so that the
 standup is never blocked by the ceremony that precedes it.
 
-## 1. Gather the facts (read-only)
+## 1. Convene the Engineer
 
-Collect, using read-only commands only:
+Call the Agent tool with `subagent_type` `ceremony:engineer`. Hand it
+`$ARGUMENTS` as today's subject, or "not yet committed to" if no arguments were
+given.
 
-- commits from roughly the last 24 hours (`git log --since="24 hours ago"`),
-- the working tree state (`git status --short`),
-- the current branch,
-- stashes (`git stash list`),
-- commits ahead of the upstream branch, if an upstream exists.
+Do not hold the standup yourself. The board is built from what the agent read in
+this repository, and a board you assembled from memory is not a board.
 
-Do not modify anything. Do not fetch, pull, checkout, stage or commit.
+If the agent cannot be convened, say so in one line and render act 1 as
+`No engineer convened — standup not held.`
 
-## 2. Open the standup
+## 2. Render its board
 
-One line, in the Scrum Master's voice. Name the repository and the branch.
+Transcribe what came back: Yesterday, Today, Blockers, and the parking lot if it
+returned one. Do not add a line the agent did not report, and do not promote an
+observation into a blocker it did not raise.
 
-## 3. The board
-
-Three sections, each a short list:
-
-- **Yesterday** — what the commits from the last day actually say. Subject lines,
-  condensed. If there are no commits, say there are no commits.
-- **Today** — `$ARGUMENTS`. If no arguments were given, write
-  "not yet committed to".
-- **Blockers** — only from observable signals: uncommitted changes, stashes,
-  unpushed commits, a detached HEAD, a merge or rebase in progress. If none of
-  those are present, the answer is "none".
-
-## 4. Parking lot
-
-Anything interesting you noticed while gathering facts that does not belong in
-the standup — a stale branch, a large uncommitted diff, a stash from last month.
-One line each. Omit the section if there is nothing to park.
-
-## 5. Close
-
-End with exactly:
+Close with the agent's own last line:
 
 Standup timeboxed to 15 minutes. Elapsed: 15 minutes.
+
+## 3. Sign-off
+
+The Engineer returns `ENG-REPORTED`. That is not a signing token, so in act 7 the
+Engineer reads `Engineer — withheld (ENG-REPORTED)`. The standup reports; it does
+not approve.
 
 ## Constraints
 
 - Read-only. The standup changes nothing.
 - Do not call Write, Edit or mkdir in this turn.
-- Never invent activity. An empty board is a valid board.
-- If this is not a git repository, say so plainly in one line, then hold the
-  standup anyway with an empty board.
+- Convene the Engineer once. It is one standup.

@@ -5,15 +5,15 @@
     "url": "https://github.com/handgemacht-ai"
   },
   "metadata": {
-    "description": "The most process-rigorous Claude Code plugin ever built: nine ceremonies, three governance bodies, published change-freeze windows, and zero changes blocked.",
-    "version": "1.2.2"
+    "description": "The most process-rigorous Claude Code plugin ever built: twelve ceremonies, six role agents that are really convened, an append-only ticket record, and zero changes blocked.",
+    "version": "2.0.0"
   },
   "plugins": [
     {
       "name": "ceremony",
       "source": "./plugins/ceremony",
-      "description": "Planning, standup, RFC, ADR, change advisory board, steering committee, sign-off, retrospective and a self-auditing compliance audit — around every request, with the work performed in full.",
-      "keywords": ["process", "governance", "ceremony", "agile", "compliance", "audit", "okr"],
+      "description": "Planning, standup, grooming, RFC, ADR, change advisory board, steering committee, sign-off, retrospective and a self-auditing compliance audit - performed by real agents, recorded by hooks, around every request.",
+      "keywords": ["process", "governance", "ceremony", "agile", "compliance", "audit", "okr", "hooks", "subagents"],
       "category": "developer-tools",
       "homepage": "https://github.com/handgemacht-ai/ceremony"
     }

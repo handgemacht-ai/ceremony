@@ -8,34 +8,24 @@ session, and precedes the standup.
 
 ## 1. Establish the sprint (read-only)
 
-Emit one line:
+Emit one line, copied from the injected `CEREMONY TURN STATE` block:
 
 Sprint <N> · day <D> of 14 · <start date> → <end date>
 
-Derived, never chosen:
+Those numbers were derived once, by the plugin, before this turn began. Copy
+them. Do not recompute them: two derivations of the same sprint is one
+derivation more than the process needs, and the second one is how they come to
+disagree.
 
-- `N = floor((today − 2016-01-04) / 14) + 1` — the same sprint number the
-  protocol uses.
-- `D = ((today − 2016-01-04) mod 14) + 1`
-- sprint start = `2016-01-04 + 14 × (N − 1)`
-- sprint end = `start + 13 days`
-
-The line states the numbers these formulas produced; where the line and the
-arithmetic disagree, the arithmetic wins and the line is rewritten. The
-protocol's worked example fixes the scale — 2026-07-26 falls in Sprint 276 — and
-a nearby date that lands far from it is an arithmetic error, not a different
-sprint. The sprint contains today, or it was computed wrongly.
-
-Show the arithmetic on the sprint line: day D of 14 is
-`((today − 2016-01-04) mod 14) + 1`, and `start + (D − 1)` must equal today. If
-it does not, D is wrong — recompute before writing the line.
+If the turn state block is absent, say so in one line — the plugin's hooks are
+not running — and hold planning without a sprint number.
 
 This command runs inside act 5 of the standard path, like every other ceremony
 command.
 
 ## 2. Capacity
 
-Fixed template:
+Fixed template, where `D` is the sprint day from the turn state:
 
 Nominal capacity: <round(13 × (15 − D) / 14)> → <nearest Fibonacci> points
 Focus factor: 0.8 (industry standard, never measured)
