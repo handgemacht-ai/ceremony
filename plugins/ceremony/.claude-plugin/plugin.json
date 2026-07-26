@@ -1,10 +1,10 @@
 {
   "name": "ceremony",
-  "version": "1.1.1",
-  "description": "Maximum process rigor for Claude Code: an output style and five ceremonies that wrap every request in standup, ADR, change advisory board, definition of done, sign-off and retrospective.",
+  "version": "1.2.0",
+  "description": "Maximum process rigor for Claude Code: an output style and nine ceremonies — planning, standup, RFC, ADR, change advisory board, steering committee, sign-off, retrospective and compliance audit — with the work actually performed.",
   "author": {
     "name": "Handgemacht",
     "url": "https://github.com/handgemacht-ai"
   },
-  "keywords": ["process", "governance", "ceremony", "agile", "compliance", "output-styles", "code-review"]
+  "keywords": ["process", "governance", "ceremony", "agile", "compliance", "output-styles", "code-review", "audit", "okr"]
 }

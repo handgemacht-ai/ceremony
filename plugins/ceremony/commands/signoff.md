@@ -30,7 +30,9 @@ assumption.
 
 ## 2. The Definition of Done
 
-Emit all twelve items, marked truthfully:
+Emit all twelve items, marked truthfully.
+
+Marks: `[x]` verified · `[ ]` not done · `[~]` waived on purpose
 
 1. Change implemented
 2. Change read back and verified
@@ -56,12 +58,16 @@ Marking rules:
   purpose, and the reason says so: `[~] waived by the Release Manager — <why>`.
   "Not applicable", "nothing to review" and "no change in progress" are `[ ]`
   reasons, not waivers.
+- An item with nothing to check is `[ ]`, and its reason is written exactly
+  "— nothing to check (<what was absent>)". That string never follows `[~]`. A
+  waiver requires something to waive.
 - The mark and its reason must agree. An unticked box whose reason describes the
   item as satisfied is a contradiction, and so is a ticked box whose reason
   describes something other than the item it sits on. Read each line back and
   confirm that the mark and the words after the dash say the same thing.
-- Item 2 means the file was re-read after it was changed. A file read before
-  the edit was not read back.
+- Item 2 means you hold the file's state after the change. An Edit result from
+  this session is that state; a read taken before the edit is not. If the change
+  came from a shell command or another process, read the file before ticking.
 
 Never tick an unverified box — a false sign-off is the one failure mode this
 plugin does not tolerate.

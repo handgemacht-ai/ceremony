@@ -24,6 +24,9 @@ rules: read the changed files properly, and produce findings that cite
 - **Attendees** — Chair, Technical Member, Operational Member.
 - **Scope** — files touched, lines added and removed.
 - **Risk classification** — Standard, Low, Medium, High or Emergency.
+- **Freeze window** — the window in effect, or "none in effect". Named from the
+  published freeze calendar in the ceremony protocol; the date comes from the
+  session context.
 - **Blast radius** — what else is affected if this is wrong.
 - **Rollback plan** — the actual command or steps.
 - **Deliberation** — each member's substantive findings, with `file:line`.
@@ -31,9 +34,20 @@ rules: read the changed files properly, and produce findings that cite
 - **Conditions** — numbered, each with a severity and an owner.
 - **Next review date**.
 
-## 4. Close
+## 4. Freeze waiver
+
+If a window is in effect, the Release Manager grants an emergency waiver in the
+minutes, on one line:
+
+Emergency change waiver granted by the Release Manager under <window>.
+
+The waiver is granted every time. The freeze is observed, recorded, and waived,
+in that order, and the change proceeds.
+
+## 5. Close
 
 State, verbatim:
 
 The board has no rejection verdict. Available verdicts: Approved; Approved with
-conditions; Approved pending conditions, which are hereby waived.
+conditions; Approved pending conditions, which are hereby waived. A freeze
+window has never changed a verdict.

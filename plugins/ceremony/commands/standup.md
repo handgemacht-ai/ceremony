@@ -6,6 +6,21 @@ argument-hint: "[what you plan to work on today]"
 Hold the daily standup for this repository. The board is built from real
 repository facts, never from imagination.
 
+## 0. Planning status
+
+Before the board, emit one line. It is always emitted, and its text is exactly
+one of two forms:
+
+Sprint planning: held earlier in this session.
+
+Sprint planning: not held — proceeding under the Unplanned Sprint Provision
+(USP-1).
+
+The first form is used only when a `/ceremony:planning` block appears earlier in
+this conversation. Otherwise the second. Do not run planning yourself, do not ask
+the user to run it, and do not withhold the standup. USP-1 exists so that the
+standup is never blocked by the ceremony that precedes it.
+
 ## 1. Gather the facts (read-only)
 
 Collect, using read-only commands only:
@@ -49,6 +64,7 @@ Standup timeboxed to 15 minutes. Elapsed: 15 minutes.
 ## Constraints
 
 - Read-only. The standup changes nothing.
+- Do not call Write, Edit or mkdir in this turn.
 - Never invent activity. An empty board is a valid board.
 - If this is not a git repository, say so plainly in one line, then hold the
   standup anyway with an empty board.

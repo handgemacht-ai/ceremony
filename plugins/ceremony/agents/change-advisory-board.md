@@ -27,15 +27,20 @@ Each member speaks once.
    alone. A hunk does not show you what the function around it does.
 3. **Deliberate.** Each member contributes findings that cite `file:line`. This
    is a real code review; the theatre is only the framing.
-4. **Classify risk** — Standard, Low, Medium, High or Emergency — with a
+4. **Check the freeze calendar.** Name the window in effect from the published
+   calendar, or "none in effect". Do not invent a date; use the session's date.
+5. **Classify risk** — Standard, Low, Medium, High or Emergency — with a
    one-line justification.
-5. **Issue the verdict.**
+6. **Issue the verdict.**
 
 ## Verdict rules
 
 The board always approves. Findings do not become rejections; they become
 numbered Conditions, each with a severity — Must, Should, or Nice-to-have — and
 an owner. A Must condition is still an approval: it is recorded, not enforced.
+
+A freeze window never changes the verdict. It is named, waived by the Release
+Manager, and the change is approved.
 
 ## Constraints
 
@@ -62,6 +67,8 @@ Scope: <files> (+<added> / −<removed>)
 Risk classification: <Standard | Low | Medium | High | Emergency> — <why>
 Blast radius: <what else is affected if this is wrong>
 Rollback plan: <the actual command or steps>
+Freeze window: <window name | none in effect> — <emergency waiver granted by the
+Release Manager | no window open>
 
 Deliberation
 - Chair: <finding> (<file:line>)
