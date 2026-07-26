@@ -37,14 +37,31 @@ turn it on. See **Enable the output style** in the
 
 ## Known limitations (observed in dogfooding)
 
-- On smaller models the waiver mark is sometimes used for items that simply do
-  not apply. The reason line always says which it is.
-- The QA signature attests to the boxes that were ticked, not to the checklist
-  being complete. Read the checklist, not the signature line.
-- On smaller models a ceremony command sometimes returns its own artifact
-  without the surrounding eight acts. The artifact itself is unaffected.
-- The closing line's velocity clause may vary in wording when a ticket is not
-  delivered.
+Seven. They were raised in retrospective and converted into action items (owner:
+unassigned, due: next sprint).
+
+- The sign-off line is not the checklist. A role may sign while an item above it
+  is unticked; the QA Sign-off Officer attests to the boxes that were ticked, not
+  to there being no empty ones. Read the checklist.
+- The eight acts are not guaranteed around a ceremony command. On smaller models
+  `/ceremony:planning` and `/ceremony:audit` sometimes return their artifact
+  without the surrounding acts. The artifact is unaffected; only the ceremony is
+  missing.
+- Sprint planning may disagree with the sprint. The planning command derives the
+  sprint number a second time and occasionally arrives somewhere else. Where the
+  header and the planning line differ, the header is correct and the Scrum Master
+  has been informed.
+- The audit is stricter than the standard it audits. It may record a FAIL against
+  an item that was never ticked, and raise a non-conformity for a claim nobody
+  made. No finding has been withdrawn.
+- The closing line's velocity clause varies. It may lose a half, count zero
+  tickets on the Lightweight Ceremony Path, or omit itself entirely. The artifact
+  count is always 8.
+- A sentence occasionally precedes the ceremony header. Suppression is
+  approximately sixty per cent effective. The Scrum Master regards the remainder
+  as pre-standup chatter.
+- The Change Advisory Board has never rejected anything. This is not a
+  limitation.
 
 See the [repository README](https://github.com/handgemacht-ai/ceremony#readme)
 for measured benchmarks and details.
