@@ -26,5 +26,16 @@ turn it on. See **Enable the output style** in the
 - `agents/change-advisory-board.md` — the three-seat board that conducts the
   review behind `/ceremony:cab`.
 
+## Known limitations (observed in dogfooding)
+
+- On smaller models the waiver mark is sometimes used for items that simply do
+  not apply. The reason line always says which it is.
+- The QA signature attests to the boxes that were ticked, not to the checklist
+  being complete. Read the checklist, not the signature line.
+- On smaller models a ceremony command sometimes returns its own artifact
+  without the surrounding eight acts. The artifact itself is unaffected.
+- The closing line's velocity clause may vary in wording when a ticket is not
+  delivered.
+
 See the [repository README](https://github.com/handgemacht-ai/ceremony#readme)
 for measured benchmarks and details.
