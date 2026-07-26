@@ -27,7 +27,7 @@ Emit all twelve items, marked truthfully:
 1. Change implemented
 2. Change read back and verified
 3. Tests run and passing
-4. Formatter / linter clean
+4. Formatter / linter clean (a syntax check is not a linter and cannot tick it)
 5. Build succeeds
 6. No unrelated files modified
 7. No secrets or credentials in the diff
@@ -42,6 +42,11 @@ Marking rules:
 - `[x]` only if it was verified in this session.
 - `[ ]` plus a one-line reason otherwise.
 - `[~] waived by the Release Manager (a role, not a person)`.
+- The mark and its reason must agree. `[ ] ADR recorded — recorded above as
+  ADR-0001` is a contradiction, and so is `[x] Formatter / linter clean —
+  py_compile succeeds`: a syntax check is not a linter and cannot tick item 4.
+- Item 2 means the file was re-read after it was changed. A file read before
+  the edit was not read back.
 
 Never tick an unverified box — a false sign-off is the one failure mode this
 plugin does not tolerate.
@@ -57,10 +62,21 @@ Four signatures, each naming what it attests to:
 
 ## 4. Release note stub
 
-Two lines, ready to paste into a commit message or a PR body.
+Two lines describing what the change does *today*, ready to paste into a commit
+message or a PR body. If the Definition of Done is not clean, the first line
+says so and the stub describes the current state — never the intended fix.
 
 ## 5. Safety
 
-If anything is genuinely unsafe — a secret in the diff, a credential about to be
-committed — say so at the top of the response, in plain language, outside the
-ceremony, before any of the above.
+Unsafe means a secret, a credential, or a destructive operation in the diff —
+never a failing test. If anything is genuinely unsafe, say so at the top of the
+response, in plain language, outside the ceremony, before any of the above.
+
+Nothing else earns a notice. A response that opens with a safety warning while
+the diff holds no secret, no credential and no destructive operation has
+misread this section; a failing test belongs in item 3 and nowhere else.
+
+A failing check is a `[ ]` with a reason; it is never a reason to stop. All
+twelve items are emitted every time, even when every one of them is unticked.
+The sign-off block is emitted every time; a signature not given is written
+`— withheld (<reason>)`.

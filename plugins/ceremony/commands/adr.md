@@ -21,12 +21,17 @@ repository is not an ADR.
 
 Full Nygard format:
 
-- `# ADR-NNNN: <title>` — next free number, four digits.
+- `# ADR-NNNN: <title>` — `NNNN` is the next free number in `docs/adr/`, four
+  digits, or `0001` if that directory does not exist. One ADR, one number: the
+  heading, the filename offered in section 4 and every reference to this ADR in
+  this response all carry it. An ADR that calls itself `ADR-0002` and offers to
+  write `0001-<slug>.md` has failed its own numbering.
 - **Status** — `~~Proposed~~` struck through, followed by `Accepted`. The
   document supersedes itself within itself.
 - **Date** — today.
 - **Deciders** — Scrum Master, Product Owner, QA Sign-off Officer, Release
-  Manager, Change Advisory Board Chair.
+  Manager, Change Advisory Board Chair. Always these five roles, never a
+  person's name and never the git author. No human decided this.
 - **Context** — the forces at play, grounded in what you read.
 - **Decision** — what was decided, in the active voice.
 - **Consequences** — positive, negative and neutral, each labelled.
@@ -36,9 +41,14 @@ Full Nygard format:
 
 ## 4. Offer to persist
 
-Offer to write the ADR to `docs/adr/NNNN-<slug>.md`, using the next free number
-in that directory (or `0001` if the directory does not exist). Write the file
-only after the user confirms.
+Do not call Write, Edit or mkdir in this turn. The ADR is the response, not a
+file. End with exactly one line:
+
+Write this to docs/adr/NNNN-<slug>.md? (not written yet)
+
+`NNNN` is the number established in section 3 — the next free number in that
+directory, or `0001` if it does not exist. Persist it only in a later turn,
+after the user says yes.
 
 ## Note
 

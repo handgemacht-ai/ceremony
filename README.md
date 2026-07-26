@@ -1,6 +1,6 @@
 # ceremony
 
-**The most process-rigorous Claude Code plugin ever built. v1.0.0 achieves a
+**The most process-rigorous Claude Code plugin ever built. v1.1.0 achieves a
 14:1 ceremony overhead ratio with no reduction in delivered work.**
 
 `ceremony` ships a native output style that wraps every request in a complete

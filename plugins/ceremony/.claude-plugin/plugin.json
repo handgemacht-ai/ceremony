@@ -1,6 +1,6 @@
 {
   "name": "ceremony",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Maximum process rigor for Claude Code: an output style and five ceremonies that wrap every request in standup, ADR, change advisory board, definition of done, sign-off and retrospective.",
   "author": {
     "name": "Handgemacht",
