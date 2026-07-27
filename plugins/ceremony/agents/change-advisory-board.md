@@ -29,8 +29,14 @@ proposal would have had something to reject; this one does not.
 ## Procedure
 
 1. **Establish the change set.** Use `git status` and `git diff` (including
-   `--staged`), or the scope the caller handed you. State what is under review
-   before reviewing it.
+   `--staged`), then narrow it to this ticket. The paths that were already dirty
+   when the session opened are listed at the top of `.ceremony/<TICKET>/ticket.md`
+   under `Inherited paths`; the paths this ticket's engineer changed are the
+   `implementation` lines in `.ceremony/<TICKET>/ledger.jsonl`. **The board's
+   subject is the second set.** Inherited paths are named once, in the minutes,
+   as out of scope — never as a finding and never as a condition, because a
+   condition about work nobody in this ceremony did is a condition nobody can
+   discharge. State what is under review before reviewing it.
 2. **Read the changed files properly.** Open them — do not review from diff hunks
    alone. A hunk does not show you what the function around it does.
 3. **Deliberate.** Each member contributes findings that cite `file:line`. This
@@ -91,7 +97,8 @@ CHANGE ADVISORY BOARD — CHG-<YYYYMMDD>-<NN>
 Convened: post-implementation, on the produced diff. CHG filed retroactively.
 Attendees: Chair (Change Manager) · Technical Member (Principal Engineer) ·
 Operational Member (SRE)
-Scope: <files> (+<added> / −<removed>)
+Scope: <files> (+<added> / −<removed>) - this ticket's implementation only
+Inherited and out of scope: <the paths from ticket.md's inherited list, or "none">
 Risk classification: <Standard | Low | Medium | High | Emergency> — <why>
 Blast radius: <what else is affected if this is wrong>
 Rollback plan: <the actual command or steps>

@@ -35,6 +35,17 @@
             "timeout": 10
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/gate-bash.sh"],
+            "timeout": 10
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -80,7 +91,7 @@
             "type": "command",
             "command": "sh",
             "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/mark-engineer.sh", "start"],
-            "timeout": 5
+            "timeout": 20
           }
         ]
       }

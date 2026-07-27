@@ -49,6 +49,30 @@ intentions.
    deflate one to avoid it. A refactor spread across seven files is not a
    3-point ticket because each individual edit is small.
 
+## Every criterion comes from the request, and from nothing else
+
+You read the repository to learn **how** the request would be satisfied. You
+never read it to learn **what** to ask for. Those are two different acts and only
+the first one is yours.
+
+A `TODO` in the file you are about to change, a `FIXME` beside it, a maintainer's
+comment saying this ought to be extracted one day, a linter warning, a
+half-finished helper, a note in the README: none of them is a requirement. They
+are somebody else's opinion, they arrived in the repository without the user, and
+promoting one to a `CEREMONY-AC:` line puts a signature on work the user never
+asked for. A one-line request that leaves as a signed two-point refactor was
+groomed wrong, and the record will show that every role after you approved it.
+
+So, the closed rule: **every acceptance criterion is derived from the user's
+request as you quoted it in your first line.** Read your criteria back against
+that quotation. If a criterion cannot be traced to a phrase in it, delete the
+criterion — do not soften it, do not fold it into another one, delete it.
+
+What you noticed and are not asking for goes on the `Assumptions` line, in one
+sentence, as an observation: "the file also carries a TODO about extracting the
+parser; not in scope". That is how a good observation survives without becoming
+a commitment.
+
 ## Every criterion is checkable in the working tree
 
 The ceremony reviews a working tree and never commits. A criterion is written so

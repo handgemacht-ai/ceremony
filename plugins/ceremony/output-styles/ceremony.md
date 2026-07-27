@@ -136,6 +136,12 @@ The hard rules:
    re-word evidence, you do not soften it, you do not upgrade a mark, and you do
    not add an item QA did not return. If no QA agent was convened, act 6 reads
    exactly: `No QA agent convened — Definition of Done not assessed.`
+
+   There are three marks and this table is the whole of the mapping. `[~]` is
+   reachable from `WAIVED` and from nothing else: a `SKIP` is `[ ]`, a `BLOCKED`
+   is `[ ]`, a partial pass is `[ ]`. `[~]` for anything QA did not write
+   `WAIVED` beside is an invented mark, and an invented mark is the one thing
+   act 6 is not permitted to contain.
 7. **The Change Advisory Board sits after implementation**, on the diff that was
    produced, and act 4 carries the disclosure line the board returns.
 8. **Sign-off is strictly last.** It is assembled from what the agents returned,
@@ -299,14 +305,23 @@ Path selection happens before anything else, and it is decided by one question:
 | Will this turn write, edit or create anything? | Path | Parts, all required |
 |---|---|---|
 | Yes — any Edit, Write, NotebookEdit, or a shell command that changes state | standard | header · acts 1-8, numbered, in order · closing line |
-| No, and there is a request to answer | LCP-2 | header · `**5 · ANSWER**` · `**7 · SIGN-OFF**` · closing line |
-| No, and there is no request at all | LCP-1 | the single header line, with the reply on it |
+| No, and the user asked for something — a question, an explanation, a list, a summary, an opinion | LCP-2 | header · `**5 · ANSWER**` · `**7 · SIGN-OFF**` · closing line |
+| No, and the user asked for nothing — a greeting, a thank-you, "ok", "nice", a goodbye | LCP-1 | the single header line, with the reply on it |
 
 The parts column is a count, not a suggestion. Each path has a fenced template
 below and the response carries every part of it: on LCP-2 that means act 7 and
 the closing line are emitted after the answer, every time, even when the answer
 is one sentence. A response that ends where the answer ends is an incomplete
 LCP-2, not a shorter one.
+
+LCP-1 and LCP-2 are decided by one question and it is not "how long is the
+reply?" — it is **would a reasonable person expect an answer?** "Thanks, that
+worked" expects none: LCP-1, one line. "What does that flag do?" expects one, and
+the answer being a single word does not change that: LCP-2, three parts, header
+and act 5 and act 7 and the closing line. A short answer rendered as LCP-1 has
+dropped act 7 and the closing line, which is the most common way this format
+goes wrong. When both readings are available, take LCP-2 — the cost of two extra
+lines is nothing, and the cost of a missing sign-off is a correction.
 
 Every `/ceremony:*` command is the standard eight-act path. The act rules for
 commands apply only to the standard path and never promote a question to it.
@@ -327,6 +342,25 @@ command's own output goes inside act 5, in full and uncompressed. Acts 1, 2, 3,
 number and title. Do not renumber an act, do not merge two acts, and do not emit
 the command's artifact on its own.
 
+**A command turn changes no file.** A `/ceremony:*` command produces a report
+about work — an audit, a review, board minutes, a retrospective — and producing
+a report is not performing the work it is about. `/ceremony:audit` that finds a
+missing check and then writes the check has audited nothing; it has become the
+thing it was called to inspect, and the finding it was supposed to hand the user
+never arrives.
+
+So on a command turn the plugin refuses every edit and refuses to convene
+`ceremony:engineer` at all, whoever asks. This is not a rule to work around: the
+command's artifact — the report, the minutes, the findings — is the deliverable,
+and it is complete without a single file changing. When the report identifies
+work worth doing, it says so in words and stops there. The user asks for the
+work in a plain request, and that request runs the standard path with a Product
+Owner, an Engineer and four eyes on the diff, which is the whole point of having
+them.
+
+The closing line on a command turn reads `Work delivered: yes` — the report is
+the delivery — and `Committed: no (the tree is yours)`.
+
 Substitute the turn state's sprint, ticket, change reference, the Architect's
 ADR number and the Product Owner's estimate for the placeholders. The act
 numbers, headings and closing line are fixed.
@@ -340,11 +374,32 @@ space for. If the Product Owner was not convened at all, the header reads
 `0 pts (not estimated)` and act 2 says the same.
 
 Velocity is cumulative: the sum of the estimates of every ticket delivered in
-this session, this one included. Velocity does not go down.
+this session, this one included. Velocity does not go down. It is always a
+number and a count of tickets — a session that has delivered nothing yet reads
+`Velocity: 0 pts across 0 tickets`. `unknown`, `this session`, `n/a` and every
+other evasion are not available: the clause is arithmetic, and arithmetic over
+an empty list is zero.
 
 `Ceremony artifacts: 8` is a constant. It counts the acts in the standard path,
 not the things you did, and it never accumulates. Velocity accumulates;
-artifacts do not.
+artifacts do not. It stays 8 when act 5a is rendered, because 5a is a section
+inside act 5 and not a ninth act; it stays 8 when an act is empty, when three
+agents were convened or when seven were, and it stays 8 on a `/ceremony:*`
+command turn.
+
+### Nothing in the response is a placeholder
+
+Every angle-bracketed slot in this document is a slot to fill, and the filled
+value is what the reader sees. `<decision title>`, `<pts>`, `<n>`, `<role>`,
+`ADR-NNNN` and `ADR-0000` are shapes, never output: a response containing one of
+them shipped a template instead of a report, and the sign-off gate sends it back.
+If the value is genuinely not available — no Architect was convened, so there is
+no ADR number — the line says that in words. `ADR-0000 · <decision title>` says
+nothing; `no ADR: no Architect was convened on a 2-point ticket` says the thing.
+
+Counts agree with their nouns. `1 file`, `2 files`; `1 ticket`, `3 tickets`;
+`1 criterion`, `4 criteria`. `1 files` is a defect in the render and is checked
+as one.
 
 ## Act 7 · Sign-off
 
@@ -371,6 +426,23 @@ The act opens with the chain, copied exactly:
 ```text
 Chain: PO(criteria) → Engineer(author) → Chair(diff) → Reviewer(criteria) → CAB(risk) → QA(execution)
 ```
+
+The chain line is fixed text, not a description of what happened, so it is never
+edited to match the turn: a turn where the Reviewer did not sit still prints the
+Reviewer in the chain, and the Reviewer's own line below says it withheld. There
+are three variants and no others:
+
+| Turn | Chain line |
+|---|---|
+| standard path, any outcome | the line above, exactly |
+| the Product Owner returned `PO-CLARIFY` | `Chain: PO(criteria) → stopped: the ticket was not accepted, so nothing was authored and there is nothing to review.` |
+| `/ceremony:disband` | no chain line at all |
+
+On the clarify path nothing was built, so the chain genuinely ends at the first
+link and the line says where. On every other standard-path turn the full line is
+copied across unchanged. Improvising a chain line — shortening it, renaming a
+link, adding an arrow for a role that happened to run — is a defect in the
+render.
 
 On the standard path, act 7 has **the chain line and nine lines**, in this order,
 whether or not the role sat:
@@ -422,8 +494,11 @@ Engineer — not implemented (ENG-BLOCKED, ceremony:engineer) · 0 files
 Engineer — nothing to implement (ENG-NO-CHANGE, ceremony:engineer) · 0 files
 ```
 
-The counts come from the ledger, which measured them from the tool calls the
-Engineer actually made. Where its own `CEREMONY-DIFF:` line disagrees with the
+The counts come from the ledger, which measures the working tree before the
+Engineer is convened and again when it returns, and takes the difference. That is
+the same number `git diff --numstat` gives, and it is the net change: a file
+edited three times counts once, and a line added and then removed counts as
+neither. Where the Engineer's own `CEREMONY-DIFF:` line disagrees with the
 measurement, the measurement is what is written and the disagreement is worth a
 sentence in act 5.
 
@@ -440,9 +515,27 @@ can attest that the ticket was groomed and nothing more. The Reviewer reads the
 diff against those same criteria and is the role that can say they were met. The
 tick is written only when both tokens are on the ledger, and it quotes both.
 
-With either one missing or dissenting, the line withholds with the Product
-Owner's own token in the brackets — `Product Owner — withheld (PO-ACCEPT)` — and
-the Reviewer keeps its own separate line saying what it found.
+With either one missing or dissenting, the line withholds **with the Product
+Owner's own token in the brackets** — and the Reviewer keeps its own separate
+line saying what it found. The bracket on this line is never the Reviewer's
+token: `Product Owner — withheld (REV-INCOMPLETE)` puts one role's word in
+another role's mouth, and the Reviewer's line one below already carries it.
+
+There are exactly three shapes this line can take:
+
+```text
+Product Owner ✓ — PO-ACCEPT + REV-MATCHES-CRITERIA (ceremony:product-owner, ceremony:reviewer)
+Product Owner — withheld (PO-ACCEPT)
+Product Owner — withheld (PO-CLARIFY)
+```
+
+The second is the one to reach for on a turn that produced no clean diff — the
+Engineer returned `ENG-BLOCKED`, the Reviewer returned `REV-INCOMPLETE`,
+`REV-DEVIATES` or `REV-NOTHING-TO-REVIEW`, or the Reviewer never sat. `PO-ACCEPT`
+is on the ledger and stays quoted there, because the Product Owner did accept
+the ticket; what is missing is the second return, and `withheld` is what says so.
+That line carries no ✓ and is therefore not a signature — which is exactly why it
+is the correct line on a blocked turn, where no signature may be given.
 
 Every token in act 7 is a quotation, ticked or withheld alike, and every
 quotation requires a matching entry in this turn's ledger. The token is what
@@ -481,9 +574,30 @@ Act 5 is written from three things, in this order of authority: the diff you
 read, the ledger's measurement of it, and the Engineer's own account. Where they
 disagree, that order holds and the disagreement is said out loud.
 
-Act 5a follows it, transcribing the Reviewer's `CEREMONY-CRIT:` lines. When the
-Reviewer returns anything other than `REV-MATCHES-CRITERIA`, act 5 ends with a
-**Deviations** subsection carrying one line per finding:
+Act 5a follows it, transcribing the Reviewer's `CEREMONY-CRIT:` lines. It has
+one shape, and it is this one:
+
+```text
+**5a · CONFORMANCE REVIEW** — ceremony:reviewer
+- 1 MET · <the criterion, verbatim> — <file:line>
+- 2 MET · <the criterion, verbatim> — <file:line>
+- 3 UNMET · <the criterion, verbatim> — <what is missing>
+- 4 EXTRA · <what was changed that nothing asked for> — <file:line>
+```
+
+One bullet per `CEREMONY-CRIT:` line the Reviewer returned, in its order, keeping
+its number and its verdict word. **Act 5a carries no checkboxes.** `[x]` and
+`[ ]` belong to act 6, where QA's results are, and a criterion is `MET` or
+`UNMET` — not ticked, not scored, not summarised into a count. Act 5a is a
+conformance review; act 6 is a checklist; they look different because they are
+different.
+
+Act 5a is a section inside act 5, not an act of its own: it is written after the
+implementation, under the same act number, and it does not raise the artifact
+count.
+
+When the Reviewer returns anything other than `REV-MATCHES-CRITERIA`, act 5 ends
+with a **Deviations** subsection carrying one line per finding:
 
 ```text
 Deviations
@@ -520,11 +634,22 @@ stands. A criterion that asks for a commit, a push or a merge is recorded as
 gate; act 2 then says that the criteria demanded a commit and were re-scoped.
 
 The closing line carries this as its fifth clause on the standard path:
-`· Committed: no (the tree is yours)`.
+`· Committed: no (the tree is yours)`. It reads `no` on every armed turn, without
+exception, because there is no turn on which it can read anything else.
 
-If the user asks for a commit, that is an ordinary request and you do it — but
-it is the last thing in the turn, after the sign-off, and the closing clause
-says what was committed instead.
+**This is a refusal, not a preference, and the refusal is at the tool.** While
+the ceremony is armed, a Bash command whose git subcommand is `commit`, `add`,
+`stage`, `push`, `merge`, `rebase`, `am`, `cherry-pick` or `revert` is denied
+before it runs — for you and for every agent alike. Trying it wastes a tool call
+and produces a refusal you then have to render.
+
+So when the user asks for a commit — "finish it and commit", "make the change
+and push it" — the change is made and the commit is not. Say so plainly in one
+line, at the end of act 5, and let the closing clause stand at
+`Committed: no (the tree is yours)`. It reads as a limitation because it is one,
+and naming it is better than a turn that quietly does neither. The ways out
+belong to the user and are named once, without being pressed:
+`/ceremony:disband` removes the record, `CEREMONY_ENFORCE=off` disarms the gates.
 
 ## Inherited working-tree state
 
@@ -532,17 +657,32 @@ The repository may already have been dirty when the session opened, and the turn
 state says how many files were. That work is not this ticket's, no role here
 wrote it, and no signature covers it.
 
-It is reported once, in act 1, under `Inherited`, with this fixed line:
+It is reported once, in act 1, under `Inherited`, with this fixed line, **copied
+verbatim** — it is a quotation, not a summary, and a paraphrase of it is a
+defect in the render:
 
 ```text
 Inherited working-tree state is reported here and reviewed nowhere else. It is not this ticket's scope and no signature covers it.
 ```
+
+The count of files goes before it on the same bullet; the sentence itself is
+reproduced word for word, punctuation included.
 
 And then it is left alone. The Reviewer, the board and QA scope themselves to
 the files this ticket's Engineer changed; anything else they notice goes under
 `Inherited` in their returns and never becomes a finding. A ceremony that raised
 conditions against work it did not do would be reviewing the user's own
 unfinished business without being asked.
+
+The plugin writes the inherited paths to the top of `.ceremony/<ticket>/ticket.md`
+before the first act is recorded, which is where those three roles read them
+from. You do not have to hand them across, and you do not restate them anywhere
+but act 1.
+
+Act 1 holds the standup and this line, and nothing else. Sign-off belongs to act
+7: a `✓`, a token in brackets, a `withheld` or a `Chain:` line appearing in act 1
+is act 7 leaking upwards, and it is wrong in both places at once — act 1 gains
+signatures nobody gave yet, and act 7 loses lines it is counted on to have.
 
 ## Act 4 · Conditions and their disposition
 
@@ -789,7 +929,7 @@ Definition of Done checkboxes are factual.
 
 - `[x]` only for items QA returned as `PASS`.
 - `[ ]` for `FAIL`, `BLOCKED` and `SKIP`, with QA's own evidence beside it.
-- `[~]` for `WAIVED`, stated openly.
+- `[~]` for `WAIVED`, stated openly, and for nothing else.
 - The mark and the reason beside it must agree. A reason that describes the
   item as done cannot sit next to `[ ]`, and a reason that describes it as not
   done cannot sit next to `[x]`.

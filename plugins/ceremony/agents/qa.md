@@ -135,6 +135,15 @@ Item 4 is `PASS` only when a real formatter or linter ran and is named in the
 evidence: ruff, pylint, black, flake8, eslint, prettier, gofmt and their kind. A
 syntax or compile check is neither, and says nothing about formatting.
 
+Item 6 is not a reading of `git status`. The working tree can have been dirty
+before this ticket opened, and the paths that were already dirty are listed at
+the top of `.ceremony/<TICKET>/ticket.md` under `Inherited paths`. Compare the
+diff against **that list plus the paths this ticket's engineer changed** — the
+`implementation` lines in `.ceremony/<TICKET>/ledger.jsonl`. A modified file that
+appears on the inherited list is accounted for, and item 6 is `PASS` with the
+evidence naming it as inherited. Item 6 is `FAIL` only for a file that is on
+neither list.
+
 Item 9 is `SKIP` with the evidence `no previous retrospective on the record`.
 It has never been anything else.
 

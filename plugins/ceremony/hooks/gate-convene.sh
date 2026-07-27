@@ -127,6 +127,14 @@ deny() {
   exit 0
 }
 
+# --- a command turn convenes no engineer ------------------------------------
+# The commands report on work; they are not a way to order it. Without this a
+# /ceremony:audit can raise a ticket, groom it and have the engineer implement
+# a tool nobody asked for, and the audit that was asked for is never written.
+if [ "$ROLE" = engineer ] && [ -f "$DATA/sessions/$SID.standalone" ]; then
+  deny "This turn is a ceremony command, and a ceremony command reports; it does not perform work. ceremony:engineer is not convenable here, and nothing on this turn may be edited by anyone.\\n\\nRender what the command file asks for, from the record and from what you can read, and end the turn there. If work is wanted, ask for it in a plain request: that turn raises a ticket, grooms it, convenes the engineer and reviews the result.\\n\\nTo work without the ceremony: /ceremony:disband, or CEREMONY_ENFORCE=off, or /hooks."
+fi
+
 # --- the engineer implements against criteria, so the criteria come first ----
 if [ "$ROLE" = engineer ]; then
   if ! printf '%s' "$MINE" | grep '"role":"product-owner"' 2>/dev/null | grep -q '"verdict":"PO-ACCEPT"' 2>/dev/null; then

@@ -138,15 +138,58 @@ case "$STATUS" in ''|*[!a-z_]*) STATUS=unknown ;; esac
 STATS=$(printf '%s' "$RAW" | sed -n 's/.*"toolStats":{\([^}]*\)}.*/\1/p' | head -n 1)
 stat_of() { printf '%s' "$STATS" | sed -n 's/.*"'"$1"'":\([0-9][0-9]*\).*/\1/p' | head -n 1; }
 EDITS=$(int "$(stat_of editFileCount)")
-ADDED=$(int "$(stat_of linesAdded)")
-REMOVED=$(int "$(stat_of linesRemoved)")
+SADDED=$(int "$(stat_of linesAdded)")
+SREMOVED=$(int "$(stat_of linesRemoved)")
+
+# --- the diff, measured -----------------------------------------------------
+# toolStats counts the lines every edit call touched. That is a record of
+# effort, not of change: edit the same line twice and it is counted twice, and
+# a paragraph rewritten in three passes is counted three times. Acts 5 and 7
+# quote a diff, so the numbers on the record are a diff - taken against the
+# tree snapshot the subagent-start hook wrote before the engineer began.
+MEASURED=toolstats
+GFILES=0; GADDED=0; GREMOVED=0
+if [ "$ROLE" = engineer ] && [ -n "$AGENTID" ]; then
+  BASE=$(cat "$DATA/sessions/$SID.base.$AGENTID" 2>/dev/null) || BASE=''
+  case "$BASE" in *[!0-9a-f]*) BASE='' ;; esac
+  if [ -n "$BASE" ] && command -v git >/dev/null 2>&1 &&
+     git -C "$CWD" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    NIDX="$DATA/sessions/$SID.base.$AGENTID.now"
+    rm -f "$NIDX" 2>/dev/null || true
+    NOW=''
+    if GIT_INDEX_FILE="$NIDX" git -C "$CWD" read-tree --empty >/dev/null 2>&1 &&
+       GIT_INDEX_FILE="$NIDX" git -C "$CWD" add -A >/dev/null 2>&1; then
+      NOW=$(GIT_INDEX_FILE="$NIDX" git -C "$CWD" write-tree 2>/dev/null)
+    fi
+    rm -f "$NIDX" 2>/dev/null || true
+    case "$NOW" in *[!0-9a-f]*) NOW='' ;; esac
+    if [ -n "$NOW" ]; then
+      NUMSTAT=$(git -C "$CWD" diff --numstat "$BASE" "$NOW" 2>/dev/null)
+      if [ $? -eq 0 ]; then
+        MEASURED=git
+        set -- $(printf '%s\n' "$NUMSTAT" | awk '
+          NF >= 3 { f++; if ($1 != "-") a += $1; if ($2 != "-") r += $2 }
+          END { printf "%d %d %d", f + 0, a + 0, r + 0 }')
+        GFILES=$(int "${1:-0}"); GADDED=$(int "${2:-0}"); GREMOVED=$(int "${3:-0}")
+      fi
+    fi
+  fi
+fi
+
+if [ "$MEASURED" = git ]; then
+  ADDED=$GADDED
+  REMOVED=$GREMOVED
+else
+  ADDED=$SADDED
+  REMOVED=$SREMOVED
+fi
 
 # --- the record ------------------------------------------------------------
 ROOT="$CWD/.ceremony"
 DIR="$ROOT/$TICKET"
 mkdir -p "$DIR/evidence" 2>/dev/null || { rm -f "$TMPIN"; exit 0; }
 [ -f "$ROOT/.gitignore" ] || printf '*\n' > "$ROOT/.gitignore" 2>/dev/null || true
-[ -f "$ROOT/config.json" ] || printf '{"version":"2.2.0","enforce":"on"}\n' > "$ROOT/config.json" 2>/dev/null || true
+[ -f "$ROOT/config.json" ] || printf '{"version":"2.2.1","enforce":"on"}\n' > "$ROOT/config.json" 2>/dev/null || true
 
 N=$(ls "$DIR/evidence" 2>/dev/null | wc -l | tr -d ' ')
 case "$N" in ''|*[!0-9]*) N=0 ;; esac
@@ -203,8 +246,12 @@ if [ "$ROLE" = product-owner ] && [ "$TOKEN" = PO-ACCEPT ]; then
 fi
 
 # --- the diff claim, against the measurement --------------------------------
+# Only ever raised against a measurement that is itself a diff. Comparing the
+# engineer's diff against a count of edit calls accuses an honest engineer of
+# arithmetic the plugin got wrong, which is what this check is for the opposite
+# of.
 MISMATCH=false
-if [ "$ROLE" = engineer ]; then
+if [ "$ROLE" = engineer ] && [ "$MEASURED" = git ]; then
   DL=$(printf '%s' "$BODY" | grep '^CEREMONY-DIFF: ' 2>/dev/null | tail -n 1)
   if [ -n "$DL" ]; then
     NUMS=$(printf '%s' "$DL" | grep -o '[0-9][0-9]*' 2>/dev/null | tr '\n' ' ')
@@ -216,9 +263,10 @@ if [ "$ROLE" = engineer ]; then
   fi
 fi
 
-printf '{"ts":"%s","session":"%s","ticket":"%s","role":"%s","agent_type":"%s","agent_id":"%s","status":"%s","verdict":"%s","ac":%s,"conditions":%s,"blocked":%s,"crit":%s,"unmet":%s,"extra":%s,"edits":%s,"added":%s,"removed":%s,"diff_mismatch":%s,"evidence":"%s"}\n' \
+printf '{"ts":"%s","session":"%s","ticket":"%s","role":"%s","agent_type":"%s","agent_id":"%s","status":"%s","verdict":"%s","ac":%s,"conditions":%s,"blocked":%s,"crit":%s,"unmet":%s,"extra":%s,"edits":%s,"added":%s,"removed":%s,"measured":"%s","stat_added":%s,"stat_removed":%s,"diff_mismatch":%s,"evidence":"%s"}\n' \
   "$TS" "$SID" "$TICKET" "$ROLE" "$AGENT" "$AGENTID" "$STATUS" "$TOKEN" \
-  "$AC" "$COND" "$BLOCKED" "$CRIT" "$UNMET" "$EXTRA" "$EDITS" "$ADDED" "$REMOVED" "$MISMATCH" "$EV" >> "$LED" 2>/dev/null || true
+  "$AC" "$COND" "$BLOCKED" "$CRIT" "$UNMET" "$EXTRA" "$EDITS" "$ADDED" "$REMOVED" \
+  "$MEASURED" "$SADDED" "$SREMOVED" "$MISMATCH" "$EV" >> "$LED" 2>/dev/null || true
 
 # --- the implementation entry, from what the engineer actually did ----------
 # Written from the platform's own measurement rather than the engineer's
@@ -227,6 +275,12 @@ printf '{"ts":"%s","session":"%s","ticket":"%s","role":"%s","agent_type":"%s","a
 if [ "$ROLE" = engineer ]; then
   MOVED=no
   [ "$EDITS" -gt 0 ] && MOVED=yes
+  [ "$MEASURED" = git ] && [ "$GFILES" -gt 0 ] && MOVED=yes
+  # Measured by git and nothing changed: the engineer touched files and put
+  # them back as they were. That is not an implementation, whatever the edit
+  # counter says, and filing one would give the reviewers a diff to read that
+  # does not exist.
+  [ "$MEASURED" = git ] && [ "$GFILES" -eq 0 ] && MOVED=no
   if command -v git >/dev/null 2>&1 && git -C "$CWD" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     NOWTREE=$({ git -C "$CWD" status --porcelain 2>/dev/null; git -C "$CWD" diff --numstat HEAD 2>/dev/null; } | cksum 2>/dev/null | tr -d ' \t')
     PREVTREE=$(cat "$DATA/sessions/$SID.tree" 2>/dev/null) || PREVTREE=''
@@ -235,20 +289,45 @@ if [ "$ROLE" = engineer ]; then
   fi
 
   if [ "$MOVED" = yes ]; then
-    # editFileCount counts edit calls, not files: three edits to one file is
-    # three. The file count comes from the paths the write recorder saw for
-    # this agent, which is the same measurement at the right granularity.
-    # "(working tree)" is the shell recorder's placeholder for a change it saw
-    # without seeing a path. It is not a file and must not be counted as one.
+    # Measured by git, the file count is the number of paths the diff names.
+    # Without it, editFileCount is the only thing left, and it counts edit
+    # calls rather than files: three edits to one file is three. The paths the
+    # write recorder saw are the better fallback. "(working tree)" is the shell
+    # recorder's placeholder for a change it saw without a path, and is not a
+    # file.
     FILES=0
-    if [ -n "$AGENTID" ] && [ -f "$LED" ]; then
-      FILES=$(grep '"role":"implementation"' "$LED" 2>/dev/null | grep '"agent_id":"'"$AGENTID"'"' | sed -n 's/.*"file":"\([^"]*\)".*/\1/p' | grep -v '^(working tree)$' | sort -u | wc -l | tr -d ' ')
+    if [ "$MEASURED" = git ]; then
+      FILES=$GFILES
+    else
+      if [ -n "$AGENTID" ] && [ -f "$LED" ]; then
+        FILES=$(grep '"role":"implementation"' "$LED" 2>/dev/null | grep '"agent_id":"'"$AGENTID"'"' | sed -n 's/.*"file":"\([^"]*\)".*/\1/p' | grep -v '^(working tree)$' | sort -u | wc -l | tr -d ' ')
+      fi
+      FILES=$(int "$FILES")
+      [ "$FILES" -eq 0 ] && FILES=$EDITS
     fi
-    FILES=$(int "$FILES")
-    [ "$FILES" -eq 0 ] && FILES=$EDITS
-    printf '{"ts":"%s","session":"%s","ticket":"%s","role":"implementation","by":"engineer","agent_id":"%s","via":"agent","files":%s,"added":%s,"removed":%s,"edits":%s}\n' \
-      "$TS" "$SID" "$TICKET" "$AGENTID" "$FILES" "$ADDED" "$REMOVED" "$EDITS" >> "$LED" 2>/dev/null || true
+    printf '{"ts":"%s","session":"%s","ticket":"%s","role":"implementation","by":"engineer","agent_id":"%s","via":"agent","measured":"%s","files":%s,"added":%s,"removed":%s,"edits":%s}\n' \
+      "$TS" "$SID" "$TICKET" "$AGENTID" "$MEASURED" "$FILES" "$ADDED" "$REMOVED" "$EDITS" >> "$LED" 2>/dev/null || true
   fi
+fi
+
+# --- what was already dirty, written where the roles will read it ------------
+# The reviewing roles read the ticket, not the session state, so the inherited
+# paths have to be on the ticket. Without them a file somebody edited yesterday
+# comes back as an EXTRA the reviewer raises, a "no unrelated files" QA marks
+# failed, and a board condition about work nobody in this ceremony did.
+if [ ! -f "$DIR/ticket.md" ]; then
+  BASEF="$DATA/sessions/$SID.baseline"
+  {
+    printf '# %s\n\n' "$TICKET"
+    if [ -f "$BASEF" ] && grep -q '^file: ' "$BASEF" 2>/dev/null; then
+      printf 'Inherited paths (already modified when this session opened - not this\n'
+      printf "ticket's work, not this ticket's scope, and no signature covers them):\n\n"
+      sed -n 's/^file: //p' "$BASEF" 2>/dev/null | sed 's/^[ \t]*/- /'
+      printf '\n'
+    else
+      printf 'Inherited paths: none. The working tree was clean when this session\nopened, so everything in the diff belongs to this session.\n\n'
+    fi
+  } > "$DIR/ticket.md" 2>/dev/null || true
 fi
 
 {

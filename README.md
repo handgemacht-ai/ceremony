@@ -151,13 +151,14 @@ v2 ships hooks. They are the part of the process that is not a suggestion.
 | Hook | What it does |
 |---|---|
 | `UserPromptSubmit` | Derives the sprint, day, ticket, change reference and freeze window once, and injects them. Nothing downstream recomputes a date. |
-| `PreToolUse` on writes | Three refusals. An edit to `.ceremony/`, by anyone including the Engineer. An edit to code on a ticket whose Product Owner has not returned `PO-ACCEPT` — attendance is not acceptance, and a question, an unreadable return or criteria that ask for a commit all leave the gate shut. And an edit by the wrong hand: a reviewing role is told to review, and the chair is told which agent to convene. |
-| `PreToolUse` on `Agent` | Rewrites every `ceremony:*` call to `run_in_background: false`, so the verdict comes back as a tool result, reaches the record, and — load-bearing for the write gate — holds the chair still while the Engineer works. Refuses to convene the same role twice for one ticket until the code has moved, to convene the Engineer before the Product Owner has accepted, or to convene Wave D before there is a change to review. |
-| `PostToolUse` on `Agent` | Appends the agent's entire return and its verdict to the ticket record, with counts taken from the agent's own words — the board's conditions, the checks QA could not run, the criteria the Reviewer answered — and, for the Engineer, the runtime's own file and line counts taken from the tool result rather than from the agent's claim about them. The model never writes this path. |
+| `PreToolUse` on writes | Four refusals. An edit to `.ceremony/`, by anyone including the Engineer. An edit on a `/ceremony:*` command turn, by anyone including the Engineer, because a command reports and does not perform. An edit to code on a ticket whose Product Owner has not returned `PO-ACCEPT` — attendance is not acceptance, and a question, an unreadable return or criteria that ask for a commit all leave the gate shut. And an edit by the wrong hand: a reviewing role is told to review, and the chair is told which agent to convene. |
+| `PreToolUse` on `Agent` | Rewrites every `ceremony:*` call to `run_in_background: false`, so the verdict comes back as a tool result, reaches the record, and — load-bearing for the write gate — holds the chair still while the Engineer works. Refuses to convene the same role twice for one ticket until the code has moved, to convene the Engineer before the Product Owner has accepted, to convene the Engineer at all on a command turn, or to convene Wave D before there is a change to review. |
+| `PreToolUse` on `Bash` | Two refusals, both narrow, because Bash is otherwise ungated on purpose. A `git` subcommand that writes history or the index — `commit`, `add`, `stage`, `push`, `merge`, `rebase`, `am`, `cherry-pick`, `revert` — is refused for every actor, chair included. `chmod`, `chown`, `chgrp` and `sudo` are refused for subagents, so that a file an Engineer cannot write stays a finding rather than becoming a permission it changed. The subcommand is read by tokenising the command line, so reads and greps that merely contain the word are untouched. |
+| `PostToolUse` on `Agent` | Appends the agent's entire return and its verdict to the ticket record, with counts taken from the agent's own words — the board's conditions, the checks QA could not run, the criteria the Reviewer answered — and, for the Engineer, the runtime's own file and line counts, measured by snapshotting the working tree when the Engineer is convened and diffing it against the tree that comes back. The model never writes this path. |
 | `PostToolUse` on writes | Records that the code moved, when, and by whose hand — the Engineer, another agent, or the chair. |
 | `SubagentStart` / `SubagentStop` | Marks the window in which the Engineer is running, and clears it when the Engineer returns. The write gate reads that marker; a marker older than thirty minutes is ignored and deleted. |
 | `PostToolUse` on `Bash` | Records the chair reading the diff — `git diff`, `git status`, `git show`, `git log -p` — which is the link in the chain the sign-off checks. Compares the working tree against the state at the start of the turn. If a shell command changed it, that is an implementation entry too, marked `via: "bash"`. Post-hooks cannot refuse anything; this one only records, which is enough to bring shell writes under the rule that verification must follow the change. Outside a git repository it does nothing. |
-| `Stop` | Twenty-one rules. Refuses to end a turn on a verdict token act 7 quotes that no agent returned — ticked or withheld — a tick on a token that withholds, a clock time in act 7, an act headed by an agent that never ran, a placeholder where the estimate goes, a file-changing turn rendered as a question or as bare prose, a sign-off assembled from an empty ledger, ticked boxes with no QA entry, a verification that ran before the change, a board condition act 4 left unanswered, a blocked verification the turn did not escalate, an escalation with nothing to escalate, or a turn that lists the ways out of the plugin and asks the user to choose instead of doing the work. Then, reported together rather than one at a time: a change the chair made itself, an act 5 describing a diff nobody read, counts that disagree with the ledger, a signature on a blocked implementation, a review that answered fewer criteria than were accepted, a deviation with no Deviations block, and an acceptance ticked without one. |
+| `Stop` | Twenty-three rules. Refuses to end a turn on a verdict token act 7 quotes that no agent returned — ticked or withheld — a tick on a token that withholds, a clock time in act 7, an act headed by an agent that never ran, a placeholder where the estimate goes, a file-changing turn rendered as a question or as bare prose, a sign-off assembled from an empty ledger, ticked boxes with no QA entry, a verification that ran before the change, a board condition act 4 left unanswered, a blocked verification the turn did not escalate, an escalation with nothing to escalate, or a turn that lists the ways out of the plugin and asks the user to choose instead of doing the work. Then, reported together rather than one at a time: a change the chair made itself, an act 5 describing a diff nobody read, counts that disagree with the ledger, a signature on a blocked implementation, a review that answered fewer criteria than were accepted, a deviation with no Deviations block, an act 7 missing one of its nine lines, an unfilled placeholder left in the render, and an acceptance ticked without one. Two of them ignore the correction budget and fire however many corrections the turn has already had: the chair-authored change, and a turn that committed anyway. |
 
 Token checking is scoped to act 7 and disposition counting to act 4. A response
 may quote a gate's own wording, a command file or a ticket note anywhere else
@@ -239,7 +240,7 @@ convene nobody again, and finish the turn rather than stop on it.
 ```text
 .ceremony/
   .gitignore                     "*" — the record ignores itself. Delete it to commit the trail.
-  config.json                    {"version":"2.2.0","enforce":"on"} - or "off", the disband tombstone
+  config.json                    {"version":"2.2.1","enforce":"on"} - or "off", the disband tombstone
   CER-<sprint>-<NN>/
     ticket.md                    append-only: every agent's entire return, under an act heading
     ledger.jsonl                 append-only: one line per verdict (with its condition and blocked counts), one line per edit
@@ -295,9 +296,21 @@ as `PO-ACCEPT-OUT-OF-SCOPE` — not a signature, and it does not open the write
 gate. Every standard turn closes with the clause `· Committed: no (the tree is
 yours)`.
 
+Since v2.2.1 this is a refusal rather than a stance. `git commit`, `git add`,
+`git push`, `git merge` and their kind are denied at the tool, before they run,
+for every actor in the turn — because a documented stance that is only checked at
+the end of the turn is a stance that can run out of budget, and once did. Ask a
+ceremony turn to commit and it will make the change, decline the commit, and say
+so. If you want it committed, commit it, or take the ceremony off first:
+`/ceremony:disband` removes the record and `CEREMONY_ENFORCE=off` disarms the
+gates.
+
 If the tree was already dirty when the session started, act 1 says so once, in a
 fixed line, and nothing else in the ceremony touches it: it is not this ticket's
-scope and no signature covers it.
+scope and no signature covers it. The paths concerned are written to the top of
+the ticket record before the first act, which is where the Reviewer, the board
+and QA read them from — so a file somebody edited yesterday is listed as
+inherited rather than raised as an unrequested change.
 
 ## Benchmarks
 
@@ -416,7 +429,7 @@ recommendations.
 
 ## Known limitations (observed in dogfooding)
 
-Ten, plus one that is not a limitation. They were raised in retrospective and
+Eleven, plus one that is not a limitation. They were raised in retrospective and
 converted into action items (owner: unassigned, due: next sprint).
 
 - **The eight acts are not guaranteed on smaller models.** Around a ceremony
@@ -424,7 +437,12 @@ converted into action items (owner: unassigned, due: next sprint).
   artifact without the surrounding acts, and the turns after a disband may lose
   them too. On ordinary work turns the same models drop an act or render two of
   them out of numeric order. The work and the artifact are unaffected; the
-  ceremony is what goes missing.
+  ceremony is what goes missing. Two shapes recur on haiku specifically and are
+  worth naming: act 5a rendered as a checklist of `[x]` boxes rather than the
+  reviewer's `MET`/`UNMET` lines, and a short question answered as a one-line
+  LCP-1 when it should have been LCP-2 with a sign-off. v2.2.1 gives both a
+  fenced template and a decision rule in the style, which reduced them and did
+  not eliminate them.
 - **The audit is stricter than the standard it audits.** It may record a FAIL
   against an item that was never ticked, and raise a non-conformity for a claim
   nobody made. No finding has been withdrawn.
@@ -457,11 +475,34 @@ converted into action items (owner: unassigned, due: next sprint).
   fact, and after the fact is the best a post-hook can do.
 - **The write gate covers `Edit` and `Write`, not `Bash`.** A heredoc written
   through a shell command changes a file without passing the gate, so a
-  determined turn can route around grooming. Bash is left ungated on purpose —
-  it is what makes `/ceremony:disband` always work. Since v2.0.3 the change is
-  at least recorded: a `PostToolUse` hook on `Bash` compares the working tree
-  and files an implementation entry marked `via: "bash"`. Recorded is not
-  refused, and a hook that runs after the command cannot be anything else.
+  determined turn can route around grooming. Bash is left mostly ungated on
+  purpose — it is what makes `/ceremony:disband` always work. Since v2.0.3 the
+  change is at least recorded: a `PostToolUse` hook on `Bash` compares the
+  working tree and files an implementation entry marked `via: "bash"`. Recorded
+  is not refused, and a hook that runs after the command cannot be anything else.
+  Two families of command are the exception and are refused outright since
+  v2.2.1: any `git` subcommand that writes history or the index — `commit`,
+  `add`, `stage`, `push`, `merge`, `rebase`, `am`, `cherry-pick`, `revert` — for
+  every actor including the chair, and `chmod`, `chown`, `chgrp` and `sudo` for
+  subagents, so that an obstacle stays a finding instead of being removed. The
+  match is on the tokenised subcommand, not on the text, so `git log --all` and
+  `grep -rn "git commit"` are unaffected. The recorder's other edge is that it
+  cannot tell a change from a side effect: a QA check that runs `python3 -c
+  "import app"` leaves a `__pycache__` directory behind, the working tree has
+  moved, and an implementation entry is filed against whoever ran it. That was
+  enough, in one observed audit turn, to make an otherwise clean sign-off
+  withhold every line over a bytecode file.
+- **The correction budget is two, and the third problem ships.** When a `Stop`
+  rule sends a turn back, that is a correction; after two corrections the gate
+  stops blocking, on the grounds that a turn stuck in a loop is worse than a turn
+  with a flaw in it. So a response with three separate defects has two of them
+  fixed and the third goes out unremarked. Two rules are exempt from the budget
+  since v2.2.1 and always fire — the one that refuses a chair-authored
+  implementation and the one that refuses a turn that committed — because both
+  are about the integrity of the record rather than the tidiness of the render,
+  and both were observed shipping on turns whose budget had already gone on
+  formatting. The exemption is capped at two blocks of its own, so the ceiling is
+  four.
 - **The sign-off gate reads the last message of a turn, and act 7 within it.**
   Smaller models sometimes deliver one response as two or three messages, and
   only the final one is checked. Token checking is scoped to the sign-off block,
@@ -476,7 +517,17 @@ converted into action items (owner: unassigned, due: next sprint).
 - The Change Advisory Board has never rejected anything. This is not a
   limitation.
 
-Two things to know rather than limitations.
+Three things to know rather than limitations.
+
+**A `/ceremony:*` command turn is mechanically read-only.** A command produces a
+report — an audit, board minutes, a conformance review, a retrospective — and
+producing a report is not doing the work it describes. On a command turn the
+plugin refuses every edit, whoever asks, and refuses to convene the engineer at
+all. This closed a real failure: `/ceremony:audit` once responded to its own
+finding by raising a ticket, convening seven agents and writing a 213-line file
+into the repository, and never produced the audit. When a report identifies work
+worth doing it says so and stops; asking for that work in a plain request runs
+the standard path, with a Product Owner and four eyes on the diff.
 
 `.ceremony/` appears in a repository the first time a turn changes a file,
 before you have asked for anything. It ignores itself — the directory ships a
@@ -529,6 +580,20 @@ diff, and that reading is recorded and checked: an act 5 with no reading after i
 is sent back. The counts in acts 5 and 7 are the runtime's measurements rather
 than the author's claim, and a disagreement between the two is recorded and
 blocked on. The turn takes longer. It was supposed to.
+
+Closed by v2.2.1, all three found by auditing v2.2.0 rather than by using it:
+**the implementation counts were wrong.** The runtime measured lines by adding up
+what each edit call touched, so a file edited three times counted three times and
+a line added then removed counted twice. In four runs out of eleven the engineer's
+own `git diff` figure was right and the ledger's was wrong — and the gate then
+forced the wrong number into the render and stamped a mismatch on an honest
+engineer. The runtime now snapshots the working tree when the engineer is
+convened and diffs it against the tree that comes back, which is the same number
+`git diff --numstat` gives. **A ceremony command re-performed the ceremony**, as
+described above. **And a commit shipped.** The stance that the ceremony never
+commits was documented and checked after the fact; on a turn whose correction
+budget had already been spent, the check could not fire and the commit went
+through. It is refused at the tool now, before it runs.
 
 Closed by v2.1.0: a Change Advisory Board whose conditions were never applied,
 waived or answered at all; a turn that hit a missing toolchain, marked four

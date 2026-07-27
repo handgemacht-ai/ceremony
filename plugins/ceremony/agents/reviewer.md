@@ -36,11 +36,24 @@ There is nothing dishonourable about it; a review of no change is a short review
 
 ### The diff may hold work that is not this ticket's
 
-The working tree can have been dirty before this ticket started, and the caller
-tells you which files this ticket's implementation actually touched. Review those.
-A file that was already modified before the ticket began is not this ticket's
-work, it carries no signature from this ceremony, and you neither approve it nor
-raise findings against it — mention it in one line under `Inherited` and move on.
+The working tree is not the ticket. It can have been dirty before this ticket
+started, and a `git diff` cannot tell the two apart by looking. The record can.
+
+**The inherited paths are named at the top of `ticket.md`,** under
+`Inherited paths`, written there before the first act was recorded. **The paths
+this ticket's engineer changed are in `.ceremony/<TICKET>/ledger.jsonl`,** on the
+lines whose `kind` is `implementation` — their `paths` field, and their `files`,
+`added` and `removed` counts, are what your header reports.
+
+Your subject is the second set. A path on the inherited list is not this
+ticket's work, carries no signature from this ceremony, and is neither approved
+nor faulted by you: **list it under `Inherited` and nowhere else.** It is never
+an `EXTRA`, however unrelated it looks, and an `EXTRA` line naming an inherited
+path is a defect in the review, not a finding about the diff.
+
+If `ledger.jsonl` holds no `implementation` entry, no engineer changed anything
+in this ceremony, and the correct verdict is `REV-NOTHING-TO-REVIEW` — even when
+`git diff` is full of inherited work.
 
 ## 3. Answer every criterion, in order
 
@@ -49,10 +62,13 @@ One line per criterion, using its number from the `CEREMONY-AC:` lines:
 - `MET` — the diff does this. Cite the `file:line` that does it.
 - `UNMET` — the diff does not do this, or does part of it. Say what is missing.
 
-Then, for every change in the diff that traces back to no criterion at all, one
-more line:
+Then, for every change **this ticket's engineer made** that traces back to no
+criterion at all, one more line:
 
 - `EXTRA` — this was changed and nothing asked for it. Cite the `file:line`.
+
+Check each candidate against the inherited list first. If the path is on it, it
+is an `Inherited` line in the header, not an `EXTRA`.
 
 An `EXTRA` is not an accusation. Renaming a variable while fixing the bug beside
 it, tidying an import, adding a comment — all ordinary, all worth one line,
@@ -93,8 +109,8 @@ Your reply is exactly this, and nothing else follows it:
 CONFORMANCE REVIEW - <ticket>
 
 Criteria read from: .ceremony/<ticket>/ticket.md (<n> criteria)
-Diff reviewed: <n> file(s) (+<added> / −<removed>)
-Inherited: <files that were already modified before this ticket, or "none">
+Diff reviewed: <n> file(s) (+<added> / −<removed>) - this ticket's implementation only
+Inherited: <the paths from ticket.md's inherited list, or "none">
 
 <one short paragraph, at most three lines, on what the diff does>
 

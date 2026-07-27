@@ -54,8 +54,8 @@ turn it on. See **Enable the output style** in the
   bytes read.
 - `agents/steering-committee.md` — the three-seat committee behind
   `/ceremony:steering`.
-- `hooks/hooks.json` and nine `sh` scripts — the turn state, the three gates, the
-  three ledger writers, the engineer marker and the sign-off check.
+- `hooks/hooks.json` and nine `sh` scripts — the turn state, the four gates, the
+  three ledger writers and the engineer marker.
 
 ## Who writes the code
 
@@ -97,9 +97,17 @@ tree. A criterion that asks for a commit, a push or a merge is recorded as
 `PO-ACCEPT-OUT-OF-SCOPE`, which is not a signature and does not open the write
 gate.
 
+Since v2.2.1 it is a refusal rather than a stance: `git commit`, `add`, `push`,
+`merge`, `rebase` and their kind are denied at the tool for every actor,
+including the chair. Ask a ceremony turn to commit and it makes the change,
+declines the commit and says so.
+
 If the tree was already dirty when the session started, that is disclosed once,
 in act 1, and reviewed nowhere else. It is not the ticket's scope and no
-signature covers it.
+signature covers it. The paths are written to the top of the ticket record before
+the first act, which is where the reviewer, the board and QA read them from — so
+yesterday's edits are listed as inherited rather than raised as unrequested
+changes.
 
 ## The record
 
@@ -120,7 +128,9 @@ convenes nobody. `CEREMONY_ENFORCE=off` disarms the gates and keeps the record.
 ceremony.
 
 The `Stop` hook corrects a turn at most twice. A third defect in the same turn
-ships unchecked; the count resets with the next prompt.
+ships unchecked; the count resets with the next prompt. Two rules are outside
+that budget and always fire: a change the chair made itself, and a turn that
+committed.
 
 ## Conditions and escalation
 
@@ -139,7 +149,7 @@ blocked (escalated)`. The blocker is reported, never repaired.
 
 ## Known limitations (observed in dogfooding)
 
-Ten, plus one that is not a limitation. They were raised in retrospective
+Eleven, plus one that is not a limitation. They were raised in retrospective
 and converted into action items (owner: unassigned, due: next sprint).
 
 - The eight acts are not guaranteed on smaller models. Around a ceremony command
@@ -147,7 +157,11 @@ and converted into action items (owner: unassigned, due: next sprint).
   without the surrounding acts, and the turns after a disband may lose them too.
   On ordinary work turns the same models drop an act or render two of them out
   of numeric order. The work and the artifact are unaffected; the ceremony is
-  what goes missing.
+  what goes missing. Two shapes recur on haiku: act 5a rendered as `[x]`
+  checkboxes rather than the reviewer's `MET`/`UNMET` lines, and a short question
+  answered as a one-line LCP-1 when it should have been LCP-2 with a sign-off.
+  v2.2.1 adds a fenced template and a decision rule for both, which reduced them
+  and did not eliminate them.
 - The audit is stricter than the standard it audits. It may record a FAIL against
   an item that was never ticked, and raise a non-conformity for a claim nobody
   made. No finding has been withdrawn.
@@ -172,10 +186,24 @@ and converted into action items (owner: unassigned, due: next sprint).
   recorded with `"by": "chair"`, and the sign-off gate refuses the turn — after
   the fact, which is the best a post-hook can do.
 - The write gate covers `Edit` and `Write`, not `Bash`. A heredoc through a
-  shell command changes a file without passing the gate. Bash is ungated on
-  purpose, so that `/ceremony:disband` always works. Since v2.0.3 the change is
-  at least recorded: a hook after every `Bash` call compares the working tree and
-  files an implementation entry marked `via: "bash"`. Recorded is not refused.
+  shell command changes a file without passing the gate. Bash is mostly ungated
+  on purpose, so that `/ceremony:disband` always works. Since v2.0.3 the change
+  is at least recorded: a hook after every `Bash` call compares the working tree
+  and files an implementation entry marked `via: "bash"`. Recorded is not
+  refused. Two families are the exception and are refused outright since v2.2.1:
+  any `git` subcommand that writes history or the index, for every actor, and
+  `chmod`, `chown`, `chgrp` and `sudo` for subagents. The subcommand is read by
+  tokenising the command line, so `git log --all` and `grep -rn "git commit"` are
+  untouched. The recorder cannot tell a change from a side effect either: a QA
+  check that imports a Python module leaves a `__pycache__` directory, the tree
+  has moved, and an implementation entry is filed against whoever ran it.
+- The correction budget is two, and the third problem ships. After two `Stop`
+  corrections the gate stops blocking, because a turn stuck in a loop is worse
+  than a turn with a flaw in it. Two rules are exempt since v2.2.1 and always
+  fire — a change the chair made itself, and a turn that committed — because both
+  are about the record rather than the render, and both were observed shipping on
+  turns whose budget had gone on formatting. The exemption is capped at two, so
+  the ceiling is four.
 - The sign-off gate reads the last message of a turn, and act 7 within it.
   Smaller models sometimes deliver one response as two or three messages, and
   only the final one is checked. Token checking is scoped to the sign-off block,
@@ -189,6 +217,15 @@ and converted into action items (owner: unassigned, due: next sprint).
   can leave those behind. No leak was observed in the most recent round.
 - The Change Advisory Board has never rejected anything. This is not a
   limitation.
+
+A `/ceremony:*` command turn is mechanically read-only, which is a design
+decision rather than a limitation. A command produces a report, and producing a
+report is not doing the work it describes; so on a command turn the plugin
+refuses every edit and refuses to convene the engineer at all. `/ceremony:audit`
+once answered its own finding by raising a ticket, convening seven agents and
+writing a 213-line file into the repository, and never produced the audit. When
+a report identifies work worth doing it says so and stops; the work is then
+asked for in a plain request, which runs the standard path.
 
 `.ceremony/` appears the first time a turn changes a file. It ignores itself,
 arms nothing on its own, and `/ceremony:disband` removes the ticket records
@@ -225,6 +262,16 @@ file and line counts in acts 5 and 7 are the runtime's own measurements, not the
 engineer's claim about them; when the two disagree the record says so. The
 Product Owner's tick now needs a Reviewer that answered every criterion, and a
 deviation withholds it.
+
+Closed by v2.2.1, all three found by auditing v2.2.0 rather than by using it:
+the implementation counts were wrong, because the runtime added up the lines each
+edit call touched instead of measuring the diff — a file edited three times
+counted three times, and in four runs out of eleven the engineer's own figure was
+right and the ledger's was wrong; the runtime now snapshots the tree when the
+engineer is convened and diffs it against the tree that comes back. A ceremony
+command re-performed the ceremony, as above. And a commit shipped, on a turn
+whose correction budget was already spent — commits are refused at the tool now,
+before they run.
 
 Closed by v2.1.0: a Change Advisory Board whose conditions were never applied,
 waived or answered at all; a turn that hit a missing toolchain, marked four

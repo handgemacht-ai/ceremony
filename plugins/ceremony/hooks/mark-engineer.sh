@@ -48,6 +48,31 @@ DATA="${CLAUDE_PLUGIN_DATA:-}"
 [ -n "$DATA" ] || DATA="${TMPDIR:-/tmp}/ceremony-plugin-data"
 MDIR="$DATA/sessions/$SID.engineer"
 
+# The working tree as it stands, written as a git tree object, so that what the
+# engineer did can be measured later by diffing against it.
+#
+# toolStats.linesAdded counts the lines each edit call touched, which is not the
+# same number as the diff: two edits to the same lines are counted twice, and a
+# line rewritten and rewritten again is counted twice more. Acts 5 and 7 quote a
+# diff, so a diff is what has to be measured.
+#
+# GIT_INDEX_FILE points the staging area at a scratch file, so the user's own
+# index is not touched and nothing is staged. Ignored paths stay out, which
+# keeps .ceremony/ out of the measurement.
+snap_tree() {
+  command -v git >/dev/null 2>&1 || return 1
+  git -C "$1" rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 1
+  IDX="$2.idx"
+  rm -f "$IDX" 2>/dev/null || true
+  GIT_INDEX_FILE="$IDX" git -C "$1" read-tree --empty >/dev/null 2>&1 || { rm -f "$IDX"; return 1; }
+  GIT_INDEX_FILE="$IDX" git -C "$1" add -A >/dev/null 2>&1 || { rm -f "$IDX"; return 1; }
+  T=$(GIT_INDEX_FILE="$IDX" git -C "$1" write-tree 2>/dev/null)
+  rm -f "$IDX" 2>/dev/null || true
+  case "$T" in ''|*[!0-9a-f]*) return 1 ;; esac
+  printf '%s\n' "$T" > "$2" 2>/dev/null || return 1
+  return 0
+}
+
 AGENT=$(jget agent_type)
 [ -n "$AGENT" ] || AGENT=$(jget subagent_type)
 
@@ -62,6 +87,9 @@ esac
 if [ "$MODE" = stop ]; then
   [ "$AGENT" = "ceremony:engineer" ] || exit 0
   rm -f "$MDIR/$AID" 2>/dev/null || true
+  # The baseline is deliberately not removed here. This hook and the one that
+  # records the return race, and the measurement needs the baseline more than
+  # the directory needs tidying; the turn-state hook clears it next prompt.
   # An engineer that stopped without an id of its own leaves nothing to name, so
   # the marker directory is cleared entirely. Leaving one behind would hold the
   # write gate open for the chair, and that failure is worse than a spurious
@@ -87,4 +115,10 @@ mkdir -p "$MDIR" 2>/dev/null || exit 0
 find "$MDIR" -type f -mmin +30 -exec rm -f {} + 2>/dev/null || true
 
 : > "$MDIR/$AID" 2>/dev/null || true
+
+CWD=$(jget cwd)
+[ -n "$CWD" ] || CWD=$(sed -n 's/^CEREMONY_CWD=//p' "$DATA/sessions/$SID.env" 2>/dev/null | tail -n 1)
+[ -n "$CWD" ] || exit 0
+snap_tree "$CWD" "$DATA/sessions/$SID.base.$AID" || true
+
 exit 0

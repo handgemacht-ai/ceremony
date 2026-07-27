@@ -154,6 +154,17 @@ NN=$(printf '%02d' "$TURN")
 TICKET="CER-$SPRINT-$NN"
 CHG="CHG-$COMPACT-$NN"
 TSTART=$(date +%Y-%m-%dT%H:%M:%S%z 2>/dev/null) || TSTART=''
+TEPOCH=$(date +%s 2>/dev/null) || TEPOCH=''
+
+# The commit this repository was on when the turn opened. The sign-off gate
+# compares against it rather than against a timestamp: a fixture repository
+# initialised in the same second the prompt arrived would read as a commit made
+# during the turn, and a sha does not have that problem.
+THEAD=''
+if command -v git >/dev/null 2>&1; then
+  THEAD=$(git -C "$CWD" rev-parse HEAD 2>/dev/null) || THEAD=''
+  case "$THEAD" in *[!0-9a-f]*) THEAD='' ;; esac
+fi
 
 {
   printf 'CEREMONY_TICKET=%s\n' "$TICKET"
@@ -164,31 +175,64 @@ TSTART=$(date +%Y-%m-%dT%H:%M:%S%z 2>/dev/null) || TSTART=''
   printf 'CEREMONY_FREEZE=%s\n' "$FREEZE"
   printf 'CEREMONY_TURN=%s\n' "$TURN"
   printf 'CEREMONY_TURN_START=%s\n' "$TSTART"
+  printf 'CEREMONY_TURN_EPOCH=%s\n' "$TEPOCH"
+  printf 'CEREMONY_TURN_HEAD=%s\n' "$THEAD"
   printf 'CEREMONY_CWD=%s\n' "$CWD"
 } > "$SENV" 2>/dev/null || true
 
 rm -f "$SDIR/$SID.corrections" 2>/dev/null || true
+rm -f "$SDIR/$SID.corrections-exempt" 2>/dev/null || true
+
+# --- is this turn a ceremony command? ---------------------------------------
+# A command turn is read-only: it reports what is on the record and performs no
+# work. That is enforced, so the question has to be answered precisely. The
+# prompt itself is read, and only a prompt that opens with the command counts -
+# a plain request that mentions /ceremony:review in passing is a plain request.
+PROMPT=$(jget prompt)
+[ -n "$PROMPT" ] || PROMPT=$(jget user_prompt)
+CMDTURN=no
+CMDNAME=''
+if [ -n "$PROMPT" ]; then
+  P=${PROMPT#"${PROMPT%%[! ]*}"}
+  case "$P" in
+    /ceremony:*)
+      CMDTURN=yes
+      CMDNAME=${P%%[! -~]*}
+      CMDNAME=${CMDNAME%% *}
+      CMDNAME=$(printf '%s' "$CMDNAME" | tr -cd 'a-z:-')
+      ;;
+  esac
+else
+  # No prompt field to read. Fall back to the old, looser test rather than
+  # leaving a command turn ungoverned.
+  case "$RAW" in
+    *'/ceremony:'*) CMDTURN=yes ;;
+  esac
+fi
 
 # A disband turn arms nothing, whatever else happens in it. The marker is set
 # from the prompt rather than from the record, so a removal command that is
 # mistyped, truncated or never run cannot leave enforcement standing.
 rm -f "$SDIR/$SID.disbanding" 2>/dev/null || true
-case "$RAW" in
-  *'/ceremony:disband'*) : > "$SDIR/$SID.disbanding" 2>/dev/null || true ;;
-esac
+if [ "$CMDTURN" = yes ]; then
+  case "$CMDNAME$PROMPT" in
+    *'/ceremony:disband'*) : > "$SDIR/$SID.disbanding" 2>/dev/null || true ;;
+  esac
+fi
 
 # A standalone ceremony command asks for one role, on the working tree as it
 # stands. The wave-order gate stands down for those turns: there is no engineer
-# to convene first because the user did not ask for a change.
+# to convene first because the user did not ask for a change. The write gate
+# and the convening gate go the other way and clamp down: a command reports.
 rm -f "$SDIR/$SID.standalone" 2>/dev/null || true
-case "$RAW" in
-  *'/ceremony:'*) : > "$SDIR/$SID.standalone" 2>/dev/null || true ;;
-esac
+[ "$CMDTURN" = yes ] && { : > "$SDIR/$SID.standalone" 2>/dev/null || true; }
 
 # An engineer marker is scoped to one convening. Nothing may carry across a
 # turn boundary: a marker that outlived its subagent would leave the write gate
-# open to the chair for the rest of the session.
+# open to the chair for the rest of the session. The tree snapshots taken
+# alongside them go the same way.
 rm -rf "$SDIR/$SID.engineer" 2>/dev/null || true
+rm -f "$SDIR/$SID".base.* 2>/dev/null || true
 
 # The state of the working tree as this turn begins. The Bash recorder compares
 # against it, which is how a shell command that writes a file gets on the
@@ -303,7 +347,13 @@ printf '%s\n' "$HDRLINE" > "$SDIR/$SID.header" 2>/dev/null || true
   printf 'writer: you do not edit. ceremony:engineer is the only role with write access and it makes every change. Its brief is two lines and no more: the ticket path, and the user request quoted verbatim. Do not restate the acceptance criteria to it - it reads them off the record, which is what makes the review meaningful.\n'
   printf 'chair-review: after the engineer returns and before you write act 5, run git diff and git status --porcelain and read them. Act 5 is written from the diff you read, not from the engineer summary alone, and the sign-off gate checks that the reading happened.\n'
   printf 'waves: A = ceremony:team-member + ceremony:product-owner in one message \302\267 B = ceremony:architect on 5, 8 or 13 points \302\267 C = ceremony:engineer alone \302\267 then you read the diff \302\267 D = ceremony:reviewer + ceremony:change-advisory-board + ceremony:qa in one message.\n'
-  printf 'commit: the ceremony never commits, stages, pushes or merges. The working tree is the artifact under review and a commit destroys it. The closing line ends "Committed: no (the tree is yours)" on the standard path.\n'
+  printf 'commit: the ceremony never commits, stages, pushes or merges. The working tree is the artifact under review and a commit destroys it. git commit, git add, git push, git merge and git rebase are refused at the tool level on an armed turn, for you and for every agent alike. The closing line ends "Committed: no (the tree is yours)" on the standard path.\n'
+  if [ "$CMDTURN" = yes ]; then
+    printf 'command: this turn is the ceremony command %s. A command reports; it does not perform work. No file may be edited on this turn by anyone, ceremony:engineer is not convenable, and no ticket is raised for work nobody asked for. Render the command file and stop. If work is wanted, it comes as a plain request in its own turn.\n' "${CMDNAME:-/ceremony:*}"
+  else
+    printf 'command: this turn is a plain request, not a ceremony command. The full path applies.\n'
+  fi
+  printf 'artifacts: the closing line counts acts, not sections. The standard path has 8 acts and prints "Ceremony artifacts: 8"; act 5a is part of act 5 and is not counted again.\n'
   printf 'conditions: every CEREMONY-CONDITION line the board returns gets one Disposition line in act 4, numbered to match: applied - <what was done>, waived - <reason>, or carried - action item recorded (owner - due). Applying one means convening ceremony:engineer again, and then ceremony:qa on the code as it now stands.\n'
   printf 'escalation: if any CEREMONY-DOD line is BLOCKED, emit the escalation block between act 8 and the closing line - one bullet per blocked item quoting the exact command QA ran, then "Decision required from the user:" - and end the closing line with "Verification: blocked (escalated)". Report the blocker; never debug it. With nothing blocked, emit no escalation block.\n'
   printf 'sign-off: act 7 quotes only tokens agents actually returned this turn - ticked or withheld alike. A role that did not run gets exactly "withheld (role not convened)". One parenthesis per line, no clock times anywhere in act 7. The Product Owner line is ticked only when PO-ACCEPT and REV-MATCHES-CRITERIA are both on the ledger.\n'

@@ -1,8 +1,10 @@
 #!/bin/sh
 # ceremony :: Stop
-# Twenty-one rules. A to L are checked in order and the first one tripped sends
-# the turn back; M to U are the chain of four eyes and are reported together.
-# A turn gets at most two corrections; the third stop is always allowed through.
+# Twenty-three rules. M and V come first and are outside the correction budget:
+# the chair editing and a commit are the two failures worth their own allowance.
+# Then A to L, in order, the first one tripped sending the turn back. Then N to
+# W, the chain of four eyes, reported together in one message.
+# A turn gets at most two ordinary corrections plus at most two exempt ones.
 set -u
 trap 'exit 0' EXIT
 
@@ -74,7 +76,6 @@ DATA="${CLAUDE_PLUGIN_DATA:-}"
 BFILE="$DATA/sessions/$SID.corrections"
 BN=$(cat "$BFILE" 2>/dev/null) || BN=0
 case "$BN" in ''|*[!0-9]*) BN=0 ;; esac
-[ "$BN" -ge "$MAXBLOCKS" ] && exit 0
 
 SENV="$DATA/sessions/$SID.env"
 [ -f "$SENV" ] || exit 0
@@ -108,6 +109,78 @@ ACT4=$(printf '%s' "$MSG" | awk '
   index($0, "CHANGE ADVISORY BOARD") { f = 1 }
   index($0, "IMPLEMENTATION") { f = 0 }
   f { print }' 2>/dev/null)
+
+CHECK=$(printf '\342\234\223')
+
+# ---------------------------------------------------------------------------
+# The two exempt rules, checked before everything else and outside the budget.
+#
+# A budget of two corrections is what makes this hook terminate, and it is kept.
+# But it also means the third defect of a turn ships unremarked, and twice now
+# that third defect has been a commit: the earlier corrections spent the budget,
+# and the rule that would have caught the commit never ran. Two failures are
+# worth their own allowance, because both of them are the ceremony reporting
+# work it did not govern - the chair writing the code itself, and a commit that
+# destroys the artifact every signature was about.
+#
+# Termination is preserved twice over: each rule fires at most once, because the
+# correction asks for a sentence whose presence stops it firing again, and the
+# exempt allowance is itself capped at two.
+XFILE="$DATA/sessions/$SID.corrections-exempt"
+XN=$(cat "$XFILE" 2>/dev/null) || XN=0
+case "$XN" in ''|*[!0-9]*) XN=0 ;; esac
+
+blockx() {
+  printf '%s\n' "$((XN + 1))" > "$XFILE" 2>/dev/null
+  printf '%s\n' "{\"decision\":\"block\",\"reason\":\"$1\\n\\n$FINISH\"}"
+  exit 0
+}
+
+if [ "$XN" -lt 2 ]; then
+  # --- M: the chair edited --------------------------------------------------
+  # Nobody in this ceremony can sign for that. There is no role behind it, no
+  # brief it answered and no review that read it as a change.
+  CHAIREDIT=''
+  if [ -n "$TSTART" ]; then
+    for t in $(printf '%s' "$MINE" | grep '"role":"implementation"' 2>/dev/null | grep '"by":"chair"' | sed -n 's/.*"ts":"\([^"]*\)".*/\1/p'); do
+      [ "$t" \< "$TSTART" ] || CHAIREDIT=yes
+    done
+  fi
+  if [ -n "$CHAIREDIT" ]; then
+    case "$MSG" in
+      *'Ceremony has no signature for work the chair did itself'*) ;;
+      *) blockx "M \\u00b7 The chair edited. An implementation entry on $TICKET is stamped by:\\\"chair\\\", which means this turn changed a file with its own hands rather than through ceremony:engineer.\\n\\nThere is no signature available for that work: no brief it answered, no criteria it was written against, and no reviewer who read it as a change. Act 7 withholds every line, and the response says so in this exact sentence: The chair edited. Ceremony has no signature for work the chair did itself.\\n\\nThe change stays. It is the signatures that do not.\\n\\n$HATCH" ;;
+    esac
+  fi
+
+  # --- V: a commit ----------------------------------------------------------
+  # The stance is documented, the criteria screen keeps it out of acceptance,
+  # and since v2.2.1 the Bash gate refuses the command outright. This is the
+  # last of the four, and the only one that runs after the fact: it exists for
+  # the case where the gates were off, or the commit came from somewhere they
+  # do not reach.
+  COMMITTED=''
+  THEAD=$(sed -n 's/^CEREMONY_TURN_HEAD=//p' "$SENV" 2>/dev/null | tail -n 1)
+  case "$THEAD" in *[!0-9a-f]*) THEAD='' ;; esac
+  if [ -n "$THEAD" ] && command -v git >/dev/null 2>&1; then
+    NHEAD=$(git -C "$CWD" rev-parse HEAD 2>/dev/null) || NHEAD=''
+    case "$NHEAD" in *[!0-9a-f]*) NHEAD='' ;; esac
+    [ -n "$NHEAD" ] && [ "$NHEAD" != "$THEAD" ] && COMMITTED=repo
+  fi
+  case "$MSG" in
+    *'Committed: yes'*) COMMITTED=claimed ;;
+  esac
+  if [ -n "$COMMITTED" ]; then
+    case "$MSG" in
+      *'no signature in this ceremony covers a commit'*) ;;
+      *) blockx "V \\u00b7 A commit was made in this turn. The ceremony never commits, and the reason is not decorum: the working tree is the artifact act 7 signs for, so a commit turns the reviewed thing into history and leaves the user holding something else. The rollback the board wrote down was only true while the change was uncommitted, and committing was the one decision in this process that was never delegated.\\n\\nIt cannot be taken back from here, so it is disclosed. Act 7 withholds every line, and the response carries this exact sentence: A commit was made in this turn; no signature in this ceremony covers a commit.\\n\\nThe closing line still ends Committed: no (the tree is yours) only when nothing was committed. It did not, so say what happened instead, in one line, and leave the decision about the commit with the user.\\n\\n$HATCH" ;;
+    esac
+  fi
+fi
+
+# The budget, spent. Everything from here down is a correction the turn can
+# live without; the two above were not.
+[ "$BN" -ge "$MAXBLOCKS" ] && exit 0
 
 # --- A: a token nobody returned --------------------------------------------
 # Every token in act 7 is a quotation. Ticked or withheld, it has to have been
@@ -239,13 +312,13 @@ elif [ "$HASESC" = yes ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Rules M to U: the four eyes.
+# Rules N to W: the four eyes.
 #
 # These are checked together and reported together. Nine separate corrections
 # against a budget of two would mean seven of them never being seen, so what
 # the turn gets back is one message listing everything wrong with the chain at
 # once. The budget stays at two because the budget is what makes this hook
-# terminate.
+# terminate. M and V are checked further up and outside it.
 # ---------------------------------------------------------------------------
 
 NOTES=''
@@ -276,22 +349,6 @@ MFILES=$(num_or_zero "$(printf '%s' "$IMPLLINE" | sed -n 's/.*"files":\([0-9][0-
 MADDED=$(num_or_zero "$(printf '%s' "$IMPLLINE" | sed -n 's/.*"added":\([0-9][0-9]*\).*/\1/p')")
 MREMOVED=$(num_or_zero "$(printf '%s' "$IMPLLINE" | sed -n 's/.*"removed":\([0-9][0-9]*\).*/\1/p')")
 
-# --- M: the chair edited ----------------------------------------------------
-# Nobody in this ceremony can sign for that. There is no role behind it, no
-# brief it answered and no review that read it as a change.
-CHAIREDIT=''
-if [ -n "$TSTART" ]; then
-  for t in $(printf '%s' "$MINE" | grep '"role":"implementation"' 2>/dev/null | grep '"by":"chair"' | sed -n 's/.*"ts":"\([^"]*\)".*/\1/p'); do
-    [ "$t" \< "$TSTART" ] || CHAIREDIT=yes
-  done
-fi
-if [ -n "$CHAIREDIT" ]; then
-  case "$MSG" in
-    *'Ceremony has no signature for work the chair did itself'*) ;;
-    *) note "M \\u00b7 The chair edited. An implementation entry on $TICKET is stamped by:\\\"chair\\\", which means this turn changed a file with its own hands rather than through ceremony:engineer.\\n\\nThere is no signature available for that work: no brief it answered, no criteria it was written against, and no reviewer who read it as a change. Act 7 withholds every line, and the response says so in this exact sentence: The chair edited. Ceremony has no signature for work the chair did itself.\\n\\nThe change stays. It is the signatures that do not." ;;
-  esac
-fi
-
 # --- N: a diff nobody read --------------------------------------------------
 LASTIMPL2=$(printf '%s' "$MINE" | grep '"role":"implementation"' 2>/dev/null | sed -n 's/.*"ts":"\([^"]*\)".*/\1/p' | sort | tail -n 1)
 LASTREAD=$(printf '%s' "$MINE" | grep '"role":"chair-review"' 2>/dev/null | sed -n 's/.*"ts":"\([^"]*\)".*/\1/p' | sort | tail -n 1)
@@ -317,14 +374,19 @@ if [ -n "$IMPLLINE" ]; then
 fi
 
 # --- P: no signature under an implementation that did not happen ------------
+# Only ticked lines are read. A blocked turn still has a Product Owner that
+# legitimately returned PO-ACCEPT, and its line is written the ordinary way -
+# withheld, with its own token in the brackets. Reading the token rather than
+# the tick used to make that honest line a defect, and burned a correction on
+# every blocked turn.
 case "$ENGV" in
   ENG-BLOCKED|ENG-NO-CHANGE|MALFORMED)
     SIGNED=''
-    for tok in $(printf '%s' "$ACT7" | grep -o '[A-Z][A-Z0-9-]*' 2>/dev/null | sort -u); do
+    for tok in $(printf '%s' "$ACT7" | grep -F "$CHECK" 2>/dev/null | grep -o '[A-Z][A-Z0-9-]*' 2>/dev/null | sort -u); do
       case " $SIGNING " in *" $tok "*) SIGNED="$SIGNED $tok" ;; esac
     done
     if [ -n "$SIGNED" ]; then
-      note "P \\u00b7 ceremony:engineer returned $ENGV on $TICKET and act 7 still carries signing token(s):$SIGNED.\\n\\nNothing was delivered for those signatures to be about. Every line in act 7 withholds on this turn - the withheld shapes are the whole of the act - and the engineer line reads: Engineer \\u2014 not implemented ($ENGV, ceremony:engineer) \\u00b7 0 files. Say plainly, in act 5, what was asked for and what stopped it."
+      note "P \\u00b7 ceremony:engineer returned $ENGV on $TICKET and act 7 still ticks:$SIGNED.\\n\\nNothing was delivered for those signatures to be about. Every line in act 7 withholds on this turn, each with its own token in the brackets - a Product Owner that accepted the criteria still reads Product Owner \\u2014 withheld (PO-ACCEPT), because accepting criteria is not the same as signing off a change that was never made. The engineer line reads: Engineer \\u2014 not implemented ($ENGV, ceremony:engineer) \\u00b7 0 files. Say plainly, in act 5, what was asked for and what stopped it."
     fi
     ;;
 esac
@@ -380,11 +442,48 @@ if [ -n "$REVV" ] && [ "$REVV" != REV-NOTHING-TO-REVIEW ]; then
   fi
 fi
 
-# --- U: the header, and the one plural that is always wrong -----------------
+# --- W: act 7 is nine lines, and the same nine every time -------------------
+# A missing line is not a smaller sign-off. Every role in the chain is named on
+# every turn, including the ones that did not sit, because "withheld (role not
+# convened)" is the finding and leaving the line out hides it.
+#
+# The nine lines belong to the standard path. LCP-2's act 7 is two fixed lines
+# saying nothing was convened, and demanding nine there would correct a correct
+# render into a wrong one.
+LCP=no
+case "$MSG" in
+  *'No roles convened on this path'*) LCP=yes ;;
+  *'LCP-2 '*) LCP=yes ;;
+  *'no ticket raised'*) LCP=yes ;;
+esac
+if [ "$LCP" = no ] && printf '%s' "$MSG" | grep -q 'SIGN-OFF' 2>/dev/null; then
+  MISSING=''
+  for lab in 'Team member' 'Product Owner' 'Architect' 'Engineer' 'Reviewer' \
+             'Change Advisory Board' 'QA Sign-off Officer' 'Release Manager' 'Scrum Master'; do
+    printf '%s' "$ACT7" | grep -q "$lab" 2>/dev/null || MISSING="$MISSING, $lab"
+  done
+  MISSING=${MISSING#, }
+  if [ -n "$MISSING" ]; then
+    note "W \\u00b7 Act 7 is missing a line for: $MISSING.\\n\\nThe sign-off is nine lines and it is the same nine on every turn, in this order: Team member, Product Owner, Architect, Engineer, Reviewer, Change Advisory Board, QA Sign-off Officer, Release Manager, Scrum Master. A role that did not sit is written out in full as <Role> \\u2014 withheld (role not convened), because that is a finding about the turn and a line left out is not.\\n\\nAbove them all, the chain line, which is fixed too: Chain: PO(criteria) \\u2192 Engineer(author) \\u2192 Chair(diff) \\u2192 Reviewer(criteria) \\u2192 CAB(risk) \\u2192 QA(execution)."
+  fi
+fi
+
+# --- U: the header, the placeholders, and the plurals that are always wrong -
 case "$MSG" in
   *'1 pts'*|*'1 points'*)
     note "U \\u00b7 The response writes 1 pts. One point is 1 pt, in the header and in act 2 alike. Every other value is pts: 2 pts, 3 pts, 5 pts." ;;
 esac
+case "$MSG" in
+  *'1 files'*|*'1 tickets'*|*'1 entries'*|*'1 criteria'*)
+    note "U \\u00b7 The response writes a plural after 1: one of 1 files, 1 tickets, 1 entries or 1 criteria. Singular after one, every time - 1 file, 1 ticket, 1 entry, 1 criterion - and the plural from two upwards." ;;
+esac
+# Multi-word lowercase slots and a closed list of single-word ones. An HTML tag
+# is either one word or carries attributes with = and quotes in it, so neither
+# shape reaches this: a turn about <button> is about a button.
+PLACE=$(printf '%s' "$MSG" | grep -oE '<[a-z]+( [a-z]+)+>|<pts>|<n>|<role>|<ticket>|<token>|<path>|ADR-NNNN|ADR-0000|CHG-NNNN|CHG-NNNNNNNN|CER-NNN' 2>/dev/null | sort -u | tr '\n' ' ')
+if [ -n "$PLACE" ]; then
+  note "U \\u00b7 The response ships a template placeholder it never filled in: $PLACE.\\n\\nEvery angle-bracket slot in the format is a hole for a real value, and a response that prints the hole is describing the format instead of using it. The ADR number is the next unused one under docs/adr/ or ADR-0001 when there are none; the change reference is on the record in the turn state; the decision title is the decision. If a value genuinely is not available, say so in words - there is no placeholder that means unknown."
+fi
 EXPECT=$(cat "$DATA/sessions/$SID.header" 2>/dev/null) || EXPECT=''
 if [ -n "$EXPECT" ] && [ -n "$HDR" ]; then
   case "$HDR" in

@@ -70,6 +70,26 @@ letter of a criterion and not the point of it.
 One attempt. A blocker reported honestly is worth more than a change that
 pretends the blocker was not there.
 
+### An obstacle is a finding. You never remove it.
+
+A file you cannot write, a directory you cannot enter, a permission that is not
+yours, a lock, a guard, a check that says no — every one of those is a fact
+about the ticket, and it is the single most useful thing you can return. Removing
+it removes the fact.
+
+**You never run `chmod`, `chown`, `chgrp` or `sudo`, and never disable a check
+in order to get past it.** The gate refuses those commands to you, so this is not
+a matter of restraint; but the rule is here because the intent is what is wrong,
+not the command. Changing a file's mode to write it, deleting a lock file,
+setting a flag that switches an assertion off, editing the guard instead of the
+thing the guard is guarding: all of them are the same move, and all of them end
+the same way — a change that only looks finished because the thing that would
+have stopped it is gone.
+
+Return `ENG-BLOCKED` with a `CEREMONY-BLOCKED:` line naming the criterion, what
+you attempted, and what stopped you. That is an ordinary outcome, it is reported
+without apology, and the ticket is better for it.
+
 ## 5. Budget
 
 At most 20 Bash commands, each with an explicit `timeout` of 120000 milliseconds
@@ -107,10 +127,12 @@ One `CEREMONY-FILE:` line per file you changed, in the order you changed them.
 No file you did not change, and no file you only read.
 
 `CEREMONY-DIFF:` is the count from `git diff --numstat` over the files you
-changed, taken after the last edit. The plugin measures the same numbers itself
-from the tools you actually ran, and the two are compared: a claim that disagrees
-with the measurement is recorded as a mismatch on the ledger. Count, do not
-estimate.
+changed, taken after the last edit. The plugin takes the same measurement the
+same way — it snapshots the working tree when you are convened and diffs it
+against the tree you return, so it is the net change, not the number of lines
+your edits passed over. The two are compared and a disagreement is recorded on
+the ledger. Count, do not estimate: a file you edited three times counts once,
+and a line you added and then removed counts as neither.
 
 On `ENG-BLOCKED`, add one line per criterion you could not satisfy, before the
 verdict:

@@ -1,7 +1,8 @@
 #!/bin/sh
 # ceremony :: PreToolUse Edit|Write|NotebookEdit|MultiEdit
-# Three refusals: writing the record, writing code before acceptance, and
-# writing code as anyone other than the engineer.
+# Four refusals: writing the record, writing anything at all on a ceremony
+# command turn, writing code before acceptance, and writing code as anyone other
+# than the engineer.
 set -u
 trap 'exit 0' EXIT
 
@@ -66,11 +67,21 @@ SENV="$DATA/sessions/$SID.env"
 TICKET=$(sed -n 's/^CEREMONY_TICKET=//p' "$SENV" 2>/dev/null | tail -n 1)
 [ -n "$TICKET" ] || exit 0
 
+# --- refusal 2: a command turn writes nothing -------------------------------
+# The gates below enforce the shape of a ceremony; they cannot tell whether the
+# turn is the ceremony a command asked for. So a /ceremony:* turn is closed to
+# every writer, the engineer included. An audit that raises a ticket and
+# implements a tool is not a stricter audit, it is a different turn wearing the
+# audit's name, and the report it was asked for never arrives.
+if [ -f "$DATA/sessions/$SID.standalone" ]; then
+  deny "This turn is a ceremony command, and a ceremony command reports; it does not perform work. Nothing is edited on this turn - not by you, not by ceremony:engineer, which is not convenable here either.\\n\\nRender what the command file asks for, from the record and from what you can read, and end the turn there. If the work is wanted, ask for it in a plain request: that turn raises a ticket, grooms it, convenes the engineer and reviews the result. This one does not.\\n\\nIf you do not want the ceremony: run /ceremony:disband to remove the record, or set CEREMONY_ENFORCE=off in the environment, or turn the hooks off with /hooks."
+fi
+
 LEDGER="$CWD/.ceremony/$TICKET/ledger.jsonl"
 PO=''
 [ -f "$LEDGER" ] && PO=$(grep '"session":"'"$SID"'"' "$LEDGER" 2>/dev/null | grep '"role":"product-owner"')
 
-# --- refusal 2: no acceptance, no edit --------------------------------------
+# --- refusal 3: no acceptance, no edit --------------------------------------
 # The gate opens on acceptance, not on attendance. A Product Owner that asked a
 # question, whose return could not be read, or whose criteria demanded a commit
 # this ceremony will never make, has accepted nothing.
@@ -84,7 +95,7 @@ else
   deny "Ticket $TICKET has no acceptance criteria. The Product Owner has not been convened for this ticket in this session, so there is nothing this edit could be measured against.\\n\\nConvene grooming first: call the Agent tool with subagent_type \\\"ceremony:product-owner\\\", wait for it to return, then convene ceremony:engineer to make the change. Wave A convenes ceremony:team-member and ceremony:product-owner in one message.\\n\\nIf you do not want the ceremony: run /ceremony:disband to remove the record, or set CEREMONY_ENFORCE=off in the environment, or turn the hooks off with /hooks."
 fi
 
-# --- refusal 3: exactly one role writes -------------------------------------
+# --- refusal 4: exactly one role writes -------------------------------------
 # Who is holding the tool? A hook payload raised inside a subagent carries
 # agent_id and agent_type; one raised in the main session carries neither,
 # because those keys are dropped when they are undefined. Absent means the chair.
