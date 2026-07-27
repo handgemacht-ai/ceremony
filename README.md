@@ -445,7 +445,7 @@ recommendations.
 
 ## Known limitations (observed in dogfooding)
 
-Eleven, plus one that is not a limitation. They were raised in retrospective and
+Twelve, plus one that is not a limitation. They were raised in retrospective and
 converted into action items (owner: unassigned, due: next sprint).
 
 - **The eight acts are not guaranteed on smaller models.** Around a ceremony
@@ -534,6 +534,15 @@ converted into action items (owner: unassigned, due: next sprint).
   served-artifact check starts the project's own command under `timeout`, so the
   command itself ends by itself; a start script that spawns background children
   can leave those behind. No leak was observed in the most recent round.
+- **Where `implementation.diff` cannot be produced, the reviewers withhold.**
+  The file is written from two git tree snapshots, so a directory that is not a
+  git repository has none, and neither does a change whose target is gitignored
+  — `node_modules/` under an explicit ignore rule, for instance. The measured
+  counts then read `0 files, +0 −0` and the Reviewer and the Change Advisory
+  Board return `NOTHING-TO-REVIEW` and withhold their signatures, even though
+  the ledger still records the implementation entries naming every file the
+  engineer wrote. The work happens and is recorded; the sign-off is what is
+  missing. The failure direction is withhold, never approve.
 - The Change Advisory Board has never rejected anything. This is not a
   limitation.
 
