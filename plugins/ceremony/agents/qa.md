@@ -31,33 +31,50 @@ Each criterion is exactly one of these, and the class decides how it is checked:
 | build | the project compiling or bundling | run the build |
 | lint | style or lint rules | run the linter, named |
 | typecheck | types | run the type checker |
-| served-artifact | what a user would see or receive | start it and look |
+| served-artifact | what a user would see or receive | start it with the project's own start command and look |
 | file-content | what is in a file | read the file |
 | manual-only | judgement, taste, a human decision | not checkable here |
 
-## 3. served-artifact is not optional
+## 3. served-artifact is not optional, and it is not improvised
 
 If a criterion is about what a user would see - a page, a rendered element, a
-response body, a command's output - you must attempt to obtain it.
+response body, a command's output - you must attempt to obtain it, using a start
+command **the project itself defines**.
 
-1. Detect the start command. Look, in this order, at `package.json` scripts,
-   `justfile`, `Procfile`, `Makefile`, `docker-compose.yml`.
-2. Start it in the background, wait for it with a bounded loop, request the
-   artifact, and grep the bytes that came back for the thing the criterion
-   claims. Do all of that in one compound Bash command so the process is always
-   stopped again:
+1. Look for one, in this order, and stop at the first hit: `package.json`
+   scripts, `justfile`, `Procfile`, `Makefile`, `docker-compose.yml`.
+2. If none of those five defines a start command, the result is
+   `BLOCKED · <item> — searched package.json scripts, justfile, Procfile,
+   Makefile, docker-compose.yml; no start command defined`. Stop there.
+3. If one exists, run it in the background, wait for it with a bounded loop,
+   request the artifact, and grep the bytes that came back for the thing the
+   criterion claims. Do all of that in one compound Bash command so the process
+   is always stopped again:
 
    ```sh
-   (<start command>) >/tmp/ceremony-qa.log 2>&1 & P=$!; \
+   (<the project's own start command>) >/tmp/ceremony-qa.log 2>&1 & P=$!; \
    for i in 1 2 3 4 5 6 7 8 9 10; do curl -fsS <url> >/dev/null 2>&1 && break; sleep 1; done; \
    curl -fsS <url of the artifact> | grep -n '<the expected thing>'; R=$?; \
    kill $P 2>/dev/null; wait $P 2>/dev/null; exit $R
    ```
 
-3. The evidence is what the served bytes said. Reading the source file is not
+4. The evidence is what the served bytes said. Reading the source file is not
    evidence for a served-artifact criterion: the file is what was written, the
    response is what is served, and the whole point of this class is the
    difference between them.
+
+### You do not stand up a server of your own
+
+Starting any process the project did not define is forbidden. That includes a
+language runtime's built-in file-server module, a one-line static-file server
+from a package runner, and any other general-purpose server you would have to
+choose the command for yourself. If you had to invent the command, it is not
+this project's start command, and what it serves is not this project's
+behaviour - it is a directory listing you produced to have something to look at.
+
+One start command. One port - the one the project's own command uses. One
+attempt. If it does not come up, that is `BLOCKED`, and `BLOCKED` is a complete
+and respectable answer.
 
 `SKIP` is forbidden for a served-artifact criterion. The only permitted results
 are `PASS`, `FAIL` and `BLOCKED`.
@@ -76,7 +93,8 @@ One attempt per check. You do not debug.
 
 - Never install a dependency, never edit a file, never change a config, never
   start a database, never repair a broken script, never retry with different
-  flags, ports or arguments.
+  flags, ports or arguments, and never substitute a server of your own for one
+  the project does not define.
 - If it did not work the first time, that is the finding. Record it and move to
   the next item.
 

@@ -42,10 +42,23 @@ case "$ROLE" in
   *[!a-z-]*|'') rm -f "$TMPIN"; exit 0 ;;
 esac
 
+# An asynchronous launch stub is not a return. The agent has not spoken yet,
+# and PostToolUse will not fire again when it does, so there is nothing here to
+# record and nothing here to call malformed.
+case "$RAW" in
+  *'"status":"async_launched"'*|*'"status": "async_launched"'*|*'"isAsync":true'*|*'"isAsync": true'*)
+    rm -f "$TMPIN"; exit 0 ;;
+esac
+
 SID=$(jget session_id)
 [ -n "$SID" ] || { rm -f "$TMPIN"; exit 0; }
 CWD=$(jget cwd)
 [ -n "$CWD" ] || CWD=$(pwd 2>/dev/null) || { rm -f "$TMPIN"; exit 0; }
+
+# A disbanded ceremony keeps no record, and never re-arms itself by writing one.
+if [ -f "$CWD/.ceremony/config.json" ]; then
+  grep -q '"enforce":[ ]*"on"' "$CWD/.ceremony/config.json" 2>/dev/null || { rm -f "$TMPIN"; exit 0; }
+fi
 
 DATA="${CLAUDE_PLUGIN_DATA:-}"
 [ -n "$DATA" ] || DATA="${TMPDIR:-/tmp}/ceremony-plugin-data"
@@ -79,6 +92,10 @@ BODY=$(printf '%s' "$RAW" | awk '
     printf "%s", out
   }' 2>/dev/null)
 
+# Nothing came back at all: there is no return to file. MALFORMED is reserved
+# for an agent that spoke and got its own closing line wrong.
+[ -n "$BODY" ] || { rm -f "$TMPIN"; exit 0; }
+
 TOKEN=$(printf '%s' "$BODY" | grep -o 'CEREMONY-VERDICT: [A-Z][A-Z-]*' 2>/dev/null | tail -n 1 | sed 's/^CEREMONY-VERDICT: //')
 [ -n "$TOKEN" ] || TOKEN=MALFORMED
 
@@ -103,7 +120,7 @@ ROOT="$CWD/.ceremony"
 DIR="$ROOT/$TICKET"
 mkdir -p "$DIR/evidence" 2>/dev/null || { rm -f "$TMPIN"; exit 0; }
 [ -f "$ROOT/.gitignore" ] || printf '*\n' > "$ROOT/.gitignore" 2>/dev/null || true
-[ -f "$ROOT/config.json" ] || printf '{"version":"2.0.0","enforce":"on"}\n' > "$ROOT/config.json" 2>/dev/null || true
+[ -f "$ROOT/config.json" ] || printf '{"version":"2.0.1","enforce":"on"}\n' > "$ROOT/config.json" 2>/dev/null || true
 
 N=$(ls "$DIR/evidence" 2>/dev/null | wc -l | tr -d ' ')
 case "$N" in ''|*[!0-9]*) N=0 ;; esac

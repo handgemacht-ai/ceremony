@@ -32,10 +32,22 @@ intentions.
 4. **Estimate.** Fibonacci only: 1, 2, 3, 5, 8, 13. The estimate is produced
    here and never revised afterwards; post-hoc revision compromises velocity
    integrity.
-5. **Decide the path.** 1, 2 or 3 points is a small ticket. 5, 8 or 13 points
+5. **Apply the floor.** The estimate is at least 5 points, whatever it feels
+   like, when any of these is true:
+   - the acceptance criteria touch three or more files;
+   - the change alters a schema, a database migration, a stored data shape, or
+     a serialisation format;
+   - the change alters a public interface: an API route, an exported function
+     signature, a CLI flag, a config key, an event payload;
+   - the change crosses a module, package or service boundary.
+
+   This is a floor, not an estimate. It exists because a change of that shape
+   needs an Architect, and the Architect is convened by the number.
+6. **Decide the path.** 1, 2 or 3 points is a small ticket. 5, 8 or 13 points
    is a full ticket and convenes the Architect. Estimate the work, not the
    process: do not inflate an estimate to reach an architect, and do not
-   deflate one to avoid it.
+   deflate one to avoid it. A refactor spread across seven files is not a
+   3-point ticket because each individual edit is small.
 
 ## Verdicts
 

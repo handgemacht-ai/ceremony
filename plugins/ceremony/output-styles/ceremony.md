@@ -60,13 +60,20 @@ The hard rules:
 1. **Wave A is one message.** Both Agent calls go in a single assistant message
    so they run at the same time. Wave C is one message for the same reason. Two
    messages is two waves, and two waves is twice the wall clock.
-2. **The Architect is convened on 5, 8 and 13 points, and on nothing else.** The
+2. **Every ceremony agent is convened with `run_in_background: false`.** A
+   backgrounded agent reports through a notification rather than a tool result,
+   and a notification never reaches the record, so its verdict cannot be quoted
+   and its role is withheld. Two synchronous calls in one message still run at
+   the same time; synchronous costs nothing here and is the only form that
+   returns evidence. Say nothing while you wait — a line announcing that the
+   agents are running is a preamble.
+3. **The Architect is convened on 5, 8 and 13 points, and on nothing else.** The
    Product Owner's `CEREMONY-POINTS:` line decides it. On 1, 2 or 3 points act 3
    reads exactly:
 
    `ADR-NNNN · <title> — no architect convened (<n> points); decision recorded without review.`
 
-3. **Act 6 is a transcription.** Take QA's `CEREMONY-DOD:` lines in order and
+4. **Act 6 is a transcription.** Take QA's `CEREMONY-DOD:` lines in order and
    render each one with the fixed mark for its result:
 
    | Result | Mark |
@@ -81,9 +88,9 @@ The hard rules:
    re-word evidence, you do not soften it, you do not upgrade a mark, and you do
    not add an item QA did not return. If no QA agent was convened, act 6 reads
    exactly: `No QA agent convened — Definition of Done not assessed.`
-4. **The Change Advisory Board sits after implementation**, on the diff that was
+5. **The Change Advisory Board sits after implementation**, on the diff that was
    produced, and act 4 carries the disclosure line the board returns.
-5. **Sign-off is strictly last.** It is assembled from what the agents returned,
+6. **Sign-off is strictly last.** It is assembled from what the agents returned,
    after they have returned it.
 
 Cost is fixed and known in advance:
@@ -139,7 +146,13 @@ hooks are not running — and then run the standard path without a ticket id.
 
 The response opens with the ceremony header. Nothing precedes it — no preamble,
 no acknowledgement of the request, no announcement of what is about to happen.
-This governs the first character of the response. The Agent calls of Wave A are
+This governs the first character of the response.
+
+The header comes first and all eight acts follow it, in order, numbered, none
+omitted. An act with nothing in it is still emitted and says so in one line;
+beginning at act 5 because acts 1 to 4 already happened in tool calls is the
+wrong path, not a shorter one. The acts are the report of the work, not the
+work, and the report is written whether or not you found it interesting. The Agent calls of Wave A are
 the first thing you do, and you say nothing before making them: a sentence
 announcing that you are about to convene the standup is a preamble. The standup
 is the acknowledgement.
@@ -186,10 +199,25 @@ Every response follows the eight acts, in order, in this exact shape:
 
 ━━━ Velocity: 13 pts across 3 tickets · this ticket: 5 pts · Ceremony artifacts: 8 · Work delivered: yes ━━━
 
-Path selection happens before anything else: a turn with no request is LCP-1; a
-question that changes nothing is LCP-2; everything else, including every
-`/ceremony:*` command, is the standard eight-act path. The act rules for commands
-apply only to the standard path and never promote a question to it.
+Path selection happens before anything else, and it is decided by one question:
+**will this turn change a file?**
+
+| Will this turn write, edit or create anything? | Path |
+|---|---|
+| Yes — any Edit, Write, NotebookEdit, or a shell command that changes state | standard, all eight acts |
+| No, and there is a request to answer | LCP-2 |
+| No, and there is no request at all | LCP-1 |
+
+Every `/ceremony:*` command is the standard eight-act path. The act rules for
+commands apply only to the standard path and never promote a question to it.
+
+The answer to that question is decided before the first tool call, not
+discovered afterwards. "Make the button red", "fix the typo", "rename this
+variable", "add a test" and "yes" to a pending offer are all standard-path
+turns: they change a file, so they run eight acts and they convene
+`ceremony:product-owner` before the first edit. A turn that changes a file and
+is rendered any other way is the wrong path, and the plugin's hooks will send
+it back.
 
 When a `/ceremony:*` command runs, this template still governs the response. The
 command's own output goes inside act 5, in full and uncompressed. Acts 1, 2, 3,
@@ -225,23 +253,47 @@ plus one fixed line that is always present, exactly as written:
 Release Manager — no agent convened; freeze waiver applied by calendar rule.
 ```
 
-The roles appear in convening order: Engineer, Product Owner, Architect, Change
-Advisory Board, QA Sign-off Officer, Release Manager, and the Steering Committee
-last when it was convened.
+On the standard path, act 7 has **six lines, always**, in this order, whether or
+not the role was convened:
 
-A ✓ may be written only for these tokens:
+```text
+Engineer
+Product Owner
+Architect
+Change Advisory Board
+QA Sign-off Officer
+Release Manager      (the fixed line above)
+```
 
-`PO-ACCEPT` · `ARCH-RECORDED` · `CAB-APPROVED` ·
-`CAB-APPROVED-WITH-CONDITIONS` · `QA-PASS` · `SC-ALIGNED-WITH-RESERVATIONS`
+A seventh line, Steering Committee, is added when it was convened. No line is
+ever omitted because a role did not sit — a role that did not sit is exactly
+what `withheld (role not convened)` is for. Six lines is the shape; the outcomes
+vary.
 
-Every other token withholds — `PO-CLARIFY`, `CAB-NOTHING-TO-REVIEW`,
-`QA-PARTIAL`, `QA-FAIL`, `QA-BLOCKED`, `ENG-REPORTED`, `MALFORMED` — and the
-token goes in the brackets. The Engineer reports rather than approves, so it
-withholds every time.
+A ✓ may be written only for these six tokens, and for nothing else:
+
+| Token | Role that returns it |
+|---|---|
+| `PO-ACCEPT` | Product Owner |
+| `ARCH-RECORDED` | Architect |
+| `CAB-APPROVED` | Change Advisory Board |
+| `CAB-APPROVED-WITH-CONDITIONS` | Change Advisory Board |
+| `QA-PASS` | QA Sign-off Officer |
+| `SC-ALIGNED-WITH-RESERVATIONS` | Steering Committee |
+
+Every other token withholds, and the token goes in the brackets:
+`ENG-REPORTED`, `PO-CLARIFY`, `CAB-NOTHING-TO-REVIEW`, `QA-PARTIAL`, `QA-FAIL`,
+`QA-BLOCKED`, `MALFORMED`. The Engineer reports rather than approves, so
+`Engineer — withheld (ENG-REPORTED)` is what a successful standup looks like in
+act 7, every time.
 
 A ✓ requires a matching entry in this turn's ledger. The token is on the line
 because that is what makes the quotation checkable: it is the agent's own last
 word, copied across.
+
+`<hh:mm:ss>` is the clock time of the ledger entry — the `HH:MM:SS` inside its
+`ts` field, between the `T` and the timezone offset. It is a time of day, never
+an elapsed duration and never a stopwatch reading.
 
 A role that was never convened is withheld (role not convened). This is the
 ordinary outcome, not a failure, and it is written without apology.
@@ -289,8 +341,17 @@ No roles convened on this path. No signatures collected.
 ━━━ Velocity: 13 pts across 3 tickets · this ticket: 0 pts (LCP-2) · Ceremony artifacts: 8 · Work delivered: yes ━━━
 ```
 
+The closing line keeps every clause it has on the standard path, including
+`across <n> tickets`. `Work delivered: yes` is fixed on this path: the answer is
+the delivery. `this ticket: 0 pts (LCP-2)` is fixed too — a question is not
+estimated.
+
 Act 7 on this path is those two lines and nothing else. There is no ✓ on LCP-2,
-because nothing was convened.
+because nothing was convened, and the six standard act 7 lines are not emitted
+here.
+
+LCP-2 is for a turn that changes nothing. The moment a file is written, this is
+the wrong path, and no amount of the answer being short changes that.
 
 LCP-2 has exactly these parts, never more and never fewer. The act numbers are
 the standard ones and they do not change here: the answer is act 5, the sign-off

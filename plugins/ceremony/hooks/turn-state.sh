@@ -38,6 +38,29 @@ jget() {
     }' 2>/dev/null
 }
 
+SID=$(jget session_id)
+[ -n "$SID" ] || SID=nosession
+CWD=$(jget cwd)
+[ -n "$CWD" ] || CWD=$(pwd 2>/dev/null) || CWD='.'
+
+DATA="${CLAUDE_PLUGIN_DATA:-}"
+[ -n "$DATA" ] || DATA="${TMPDIR:-/tmp}/ceremony-plugin-data"
+SDIR="$DATA/sessions"
+mkdir -p "$SDIR" 2>/dev/null || true
+SENV="$SDIR/$SID.env"
+SBLK="$SDIR/$SID.block"
+
+# --- a synthetic prompt is not a new request --------------------------------
+# A finished background agent, a notification or a system message arrives here
+# as a prompt. It continues the turn already in progress; it does not raise a
+# ticket of its own, and it does not advance the turn counter.
+case "$RAW" in
+  *'<task-notification'*|*'[SYSTEM NOTIFICATION'*|*'NOT USER INPUT'*|*'<system-reminder'*)
+    [ -f "$SBLK" ] && cat "$SBLK" 2>/dev/null
+    exit 0
+    ;;
+esac
+
 # --- civil calendar arithmetic, no `date -d`, no timezone drift -------------
 d_from_civil() {
   _y=$1; _m=$2; _d=$3
@@ -121,17 +144,6 @@ else
 fi
 
 # --- session state ----------------------------------------------------------
-SID=$(jget session_id)
-[ -n "$SID" ] || SID=nosession
-CWD=$(jget cwd)
-[ -n "$CWD" ] || CWD=$(pwd 2>/dev/null) || CWD='.'
-
-DATA="${CLAUDE_PLUGIN_DATA:-}"
-[ -n "$DATA" ] || DATA="${TMPDIR:-/tmp}/ceremony-plugin-data"
-SDIR="$DATA/sessions"
-mkdir -p "$SDIR" 2>/dev/null || true
-SENV="$SDIR/$SID.env"
-
 TURN=0
 if [ -f "$SENV" ]; then
   TURN=$(sed -n 's/^CEREMONY_TURN=//p' "$SENV" 2>/dev/null | tail -n 1)
@@ -141,6 +153,7 @@ TURN=$((TURN + 1))
 NN=$(printf '%02d' "$TURN")
 TICKET="CER-$SPRINT-$NN"
 CHG="CHG-$COMPACT-$NN"
+TSTART=$(date +%Y-%m-%dT%H:%M:%S%z 2>/dev/null) || TSTART=''
 
 {
   printf 'CEREMONY_TICKET=%s\n' "$TICKET"
@@ -150,6 +163,7 @@ CHG="CHG-$COMPACT-$NN"
   printf 'CEREMONY_NOW=%s\n' "$WD $ISO_DATE $CLOCK"
   printf 'CEREMONY_FREEZE=%s\n' "$FREEZE"
   printf 'CEREMONY_TURN=%s\n' "$TURN"
+  printf 'CEREMONY_TURN_START=%s\n' "$TSTART"
   printf 'CEREMONY_CWD=%s\n' "$CWD"
 } > "$SENV" 2>/dev/null || true
 
@@ -166,18 +180,25 @@ fi
 
 ENFORCE=on
 if [ ! -f "$CWD/.ceremony/config.json" ]; then
-  ENFORCE='off (no .ceremony/ in this repository yet)'
+  ENFORCE='off (no roles convened yet; /ceremony:grooming arms it)'
 elif ! grep -q '"enforce":[ ]*"on"' "$CWD/.ceremony/config.json" 2>/dev/null; then
-  ENFORCE='off (.ceremony/config.json)'
+  ENFORCE='off (disbanded; /ceremony:grooming re-arms it)'
 elif [ "${CEREMONY_ENFORCE:-on}" = off ]; then
   ENFORCE='off (CEREMONY_ENFORCE=off)'
 fi
 
-printf 'CEREMONY TURN STATE (machine-derived - copy these values verbatim; do not recompute)\n'
-printf 'now: %s %s %s\n' "$WD" "$ISO_DATE" "$CLOCK"
-printf 'sprint: %s \302\267 day %s of 14 \302\267 %s \342\206\222 %s\n' "$SPRINT" "$SDAY" "$S_START" "$S_END"
-printf 'ticket: %s \302\267 change: %s\n' "$TICKET" "$CHG"
-printf 'freeze: %s\n' "$FREEZE"
-printf 'ledger: .ceremony/%s/ledger.jsonl - %s entries, %s\n' "$TICKET" "$COUNT" "$ROLES"
-printf 'enforcement: %s\n' "$ENFORCE"
+{
+  printf 'CEREMONY TURN STATE (machine-derived - copy these values verbatim; do not recompute)\n'
+  printf 'now: %s %s %s\n' "$WD" "$ISO_DATE" "$CLOCK"
+  printf 'sprint: %s \302\267 day %s of 14 \302\267 %s \342\206\222 %s\n' "$SPRINT" "$SDAY" "$S_START" "$S_END"
+  printf 'ticket: %s \302\267 change: %s\n' "$TICKET" "$CHG"
+  printf 'freeze: %s\n' "$FREEZE"
+  printf 'ledger: .ceremony/%s/ledger.jsonl - %s entries, %s\n' "$TICKET" "$COUNT" "$ROLES"
+  printf 'enforcement: %s\n' "$ENFORCE"
+  printf 'path: a turn that will change any file runs the 8 acts and convenes ceremony:product-owner before the first edit; a question runs LCP-2; a greeting runs LCP-1.\n'
+  printf 'shape: on the 8-act path the header comes first and acts 1-8 are all emitted, numbered, in one message. Starting at act 5 is the wrong path, not a shorter one.\n'
+  printf 'agents: every ceremony:* Agent call is issued with run_in_background false.\n'
+} > "$SBLK" 2>/dev/null
+
+cat "$SBLK" 2>/dev/null
 exit 0

@@ -5,6 +5,22 @@ argument-hint: "[the request to groom; defaults to the request under discussion]
 
 Groom: `$ARGUMENTS` (if empty, the request currently under discussion).
 
+## 0. Re-arm if the ceremony was disbanded
+
+Read `.ceremony/config.json` if it exists. If it says `"enforce":"off"`, this
+repository was disbanded and every hook is standing down. Remove the tombstone
+with Bash before convening anything:
+
+```sh
+rm -rf .ceremony
+```
+
+Say in one line that enforcement is being re-armed. If the file says
+`"enforce":"on"`, or `.ceremony/` does not exist, do nothing here.
+
+This is the only place the tombstone is removed. Re-arming is explicit, and it
+is a thing the user asked for by running this command.
+
 ## 1. Convene the Product Owner
 
 Call the Agent tool with `subagent_type` `ceremony:product-owner`. Hand it the
@@ -36,7 +52,8 @@ Resume once it is answered.
 
 The first agent return of a ticket creates `.ceremony/` in this repository, and
 from that point the plugin's hooks refuse an edit on a ticket that has no
-Product Owner entry. That is the intended effect: grooming is the on-ramp.
+Product Owner entry. That is the intended effect: grooming is the on-ramp, and
+the only on-ramp.
 
 To remove the record and the enforcement: `/ceremony:disband`.
 

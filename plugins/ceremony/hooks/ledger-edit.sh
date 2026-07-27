@@ -36,6 +36,10 @@ SID=$(jget session_id)
 CWD=$(jget cwd)
 [ -n "$CWD" ] || CWD=$(pwd 2>/dev/null) || exit 0
 
+if [ -f "$CWD/.ceremony/config.json" ]; then
+  grep -q '"enforce":[ ]*"on"' "$CWD/.ceremony/config.json" 2>/dev/null || exit 0
+fi
+
 DATA="${CLAUDE_PLUGIN_DATA:-}"
 [ -n "$DATA" ] || DATA="${TMPDIR:-/tmp}/ceremony-plugin-data"
 SENV="$DATA/sessions/$SID.env"
@@ -43,10 +47,14 @@ SENV="$DATA/sessions/$SID.env"
 TICKET=$(sed -n 's/^CEREMONY_TICKET=//p' "$SENV" 2>/dev/null | tail -n 1)
 [ -n "$TICKET" ] || exit 0
 
-# A repository with no ticket record is not under ceremony. Recording an edit
-# here would arm enforcement from behind, so it does not.
-DIR="$CWD/.ceremony/$TICKET"
-[ -d "$DIR" ] || exit 0
+# The edit is recorded even when no role has been convened yet: an unceremonious
+# turn is exactly the one the sign-off gate needs to know about. The ledger is
+# created here; config.json is not, so this never arms the write gate from
+# behind - only an agent return does that.
+ROOT="$CWD/.ceremony"
+DIR="$ROOT/$TICKET"
+mkdir -p "$DIR" 2>/dev/null || exit 0
+[ -f "$ROOT/.gitignore" ] || printf '*\n' > "$ROOT/.gitignore" 2>/dev/null || true
 
 FILE=$(jget file_path)
 [ -n "$FILE" ] || FILE=$(jget notebook_path)

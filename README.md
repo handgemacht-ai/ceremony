@@ -87,10 +87,10 @@ v2 ships hooks. They are the part of the process that is not a suggestion.
 |---|---|
 | `UserPromptSubmit` | Derives the sprint, day, ticket, change reference and freeze window once, and injects them. Nothing downstream recomputes a date. |
 | `PreToolUse` on writes | Refuses an edit to `.ceremony/`, and refuses an edit to code on a ticket whose Product Owner was never convened. |
-| `PreToolUse` on `Agent` | Refuses to convene the same role twice for one ticket, until the code has moved. |
+| `PreToolUse` on `Agent` | Rewrites every `ceremony:*` call to `run_in_background: false`, so the verdict comes back as a tool result and reaches the record. Refuses to convene the same role twice for one ticket, until the code has moved. |
 | `PostToolUse` on `Agent` | Appends the agent's entire return and its verdict to the ticket record. The model never writes this path. |
 | `PostToolUse` on writes | Records that the code moved, and when. |
-| `Stop` | Refuses to end a turn on a forged signature, a sign-off assembled from an empty ledger, ticked boxes with no QA entry, or a verification that ran before the change. |
+| `Stop` | Refuses to end a turn on a forged signature, a tick on a token that withholds, a file-changing turn rendered as a question or as bare prose, a sign-off assembled from an empty ledger, ticked boxes with no QA entry, or a verification that ran before the change. |
 
 The `Stop` hook corrects at most once per turn. Every refusal names the way out.
 
@@ -99,7 +99,7 @@ The `Stop` hook corrects at most once per turn. Every refusal names the way out.
 ```text
 .ceremony/
   .gitignore                     "*" — the record ignores itself. Delete it to commit the trail.
-  config.json                    {"version":"2.0.0","enforce":"on"}
+  config.json                    {"version":"2.0.1","enforce":"on"} - or "off", the disband tombstone
   CER-<sprint>-<NN>/
     ticket.md                    append-only: every agent's entire return, under an act heading
     ledger.jsonl                 append-only: one line per verdict, one line per edit
@@ -118,8 +118,10 @@ The record is untracked by default. If you want the trail in git, delete
 
 Enforcement you cannot switch off is not a process, it is a trap. So:
 
-1. `/ceremony:disband` — removes `.ceremony/` and disarms the gates. Uses Bash,
-   which this plugin never gates.
+1. `/ceremony:disband` — removes the ticket records and leaves a tombstone,
+   `config.json` with `enforce: "off"`. Every hook reads it and stands down, and
+   no hook overwrites it, so nothing re-arms itself mid-session. Uses Bash,
+   which this plugin never gates. Only `/ceremony:grooming` arms it again.
 2. `CEREMONY_ENFORCE=off` in the environment — keeps the record, disarms the
    gates.
 3. `/hooks` — turns the hooks off for the session.
@@ -160,9 +162,11 @@ gates, and still zero changes blocked.**
 
 - **The roles attend.** A ✓ in act 7 quotes a verdict token from a subagent that
   ran, and the `Stop` hook refuses a turn that claims one it cannot find.
-- **QA starts the app.** When an acceptance criterion is about what a user would
-  see, QA runs the start command, requests the page and greps the served bytes.
-  `SKIP` is not available for that class of criterion.
+- **QA starts the app, and only the app.** When an acceptance criterion is about
+  what a user would see, QA runs the project's own start command, requests the
+  page and greps the served bytes. `SKIP` is not available for that class of
+  criterion, and neither is a server QA invented: if the project defines no
+  start command, the item is `BLOCKED` and says what was searched.
 - **Deterministic numerology.** Sprint numbers, ticket ids, change references
   and freeze windows are derived once by a hook and injected. Nothing downstream
   recomputes them, so nothing downstream can disagree with them.
