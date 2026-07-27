@@ -1,6 +1,6 @@
 #!/bin/sh
 # ceremony :: Stop
-# Seven rules, checked in order. The first one tripped sends the turn back.
+# Ten rules, checked in order. The first one tripped sends the turn back.
 # A turn gets at most two corrections; the third stop is always allowed through.
 set -u
 trap 'exit 0' EXIT
@@ -34,7 +34,7 @@ jget() {
     }' 2>/dev/null
 }
 
-FINISH='Do not stop, and do not ask which option to take. Rewrite the response with the correction applied, complete the ceremony, and deliver the requested work in this same turn. A gate correction is an instruction about how to write the turn, never a reason to abandon it.'
+FINISH='This is a re-render, not a re-run. Every return act 7 needs is already on the ledger: convene nobody again, call no Agent tool, and rewrite the response from what the record already holds. Do not stop, do not ask which option to take, and do not hand the choice back. Apply the correction, complete the ceremony and deliver the requested work in this same turn.'
 
 BFILE=''
 
@@ -79,21 +79,30 @@ MINE=''
 
 HATCH='If you want none of this: /ceremony:disband removes the record, CEREMONY_ENFORCE=off disarms the gates, /hooks turns the hooks off, /output-style default ends the ceremony.'
 
+# --- act 7, on its own ------------------------------------------------------
+# Token rules apply to the sign-off and nowhere else. A response is free to
+# quote a gate's own wording, a command file or a ticket note; those are prose
+# about the ceremony, not signatures in it.
+ACT7=$(printf '%s' "$MSG" | awk '
+  index($0, "SIGN-OFF") { f = 1 }
+  index($0, "RETROSPECTIVE") { f = 0 }
+  f { print }' 2>/dev/null)
+
 # --- A: a token nobody returned --------------------------------------------
 # Every token in act 7 is a quotation. Ticked or withheld, it has to have been
 # said by an agent that ran, and the ledger is where it was said.
 SIGNING='PO-ACCEPT ARCH-RECORDED CAB-APPROVED CAB-APPROVED-WITH-CONDITIONS QA-PASS SC-ALIGNED-WITH-RESERVATIONS'
 WITHHOLDING='ENG-REPORTED PO-CLARIFY CAB-NOTHING-TO-REVIEW QA-PARTIAL QA-FAIL QA-BLOCKED MALFORMED'
-for tok in $(printf '%s' "$MSG" | grep -o '[A-Z][A-Z0-9-]*' 2>/dev/null | sort -u); do
+for tok in $(printf '%s' "$ACT7" | grep -o '[A-Z][A-Z0-9-]*' 2>/dev/null | sort -u); do
   case " $SIGNING $WITHHOLDING " in *" $tok "*) ;; *) continue ;; esac
   if ! printf '%s' "$MINE" | grep -q '"verdict":"'"$tok"'"' 2>/dev/null; then
-    block "The response quotes the verdict token $tok, and no agent returned $tok for $TICKET in this session. The ledger .ceremony/$TICKET/ledger.jsonl has no such entry, so that line was written rather than collected.\\n\\nA role with no ledger entry has exactly one permitted act 7 line: <Role> \\u2014 withheld (role not convened). That is the ordinary outcome and it needs no apology. It applies to a withheld line as much as to a ticked one: withheld ($tok) still claims the agent spoke.\\n\\n$HATCH"
+    block "Act 7 quotes the verdict token $tok, and no agent returned $tok for $TICKET in this session. The ledger .ceremony/$TICKET/ledger.jsonl has no such entry, so that line was written rather than collected.\\n\\nA role with no ledger entry has exactly one permitted act 7 line: <Role> \\u2014 withheld (role not convened). That is the ordinary outcome and it needs no apology. It applies to a withheld line as much as to a ticked one: withheld ($tok) still claims the agent spoke.\\n\\n$HATCH"
   fi
 done
 
 # --- B: a tick on a token that withholds ------------------------------------
 CHECK=$(printf '\342\234\223')
-for tok in $(printf '%s' "$MSG" | grep -F "$CHECK" 2>/dev/null | grep -o '[A-Z][A-Z0-9]*-[A-Z0-9-]*' 2>/dev/null | sort -u); do
+for tok in $(printf '%s' "$ACT7" | grep -F "$CHECK" 2>/dev/null | grep -o '[A-Z][A-Z0-9]*-[A-Z0-9-]*' 2>/dev/null | sort -u); do
   case "$tok" in CEREMONY-*|SIGN-OFF) continue ;; esac
   case " $SIGNING " in *" $tok "*) continue ;; esac
   block "Act 7 gives a tick to $tok. $tok is not a signing token: it withholds.\\n\\nOnly these six may carry a tick: PO-ACCEPT, ARCH-RECORDED, CAB-APPROVED, CAB-APPROVED-WITH-CONDITIONS, QA-PASS, SC-ALIGNED-WITH-RESERVATIONS. Every other token is written as: <Role> \\u2014 withheld ($tok). The Engineer reports rather than approves and withholds every time.\\n\\n$HATCH"
@@ -103,7 +112,7 @@ done
 # Act 7 carries no times. Every time rendered there so far was invented, and a
 # fact that is always invented is better removed than checked.
 TOKRE=$(printf '%s %s' "$SIGNING" "$WITHHOLDING" | tr ' ' '|')
-BADTIME=$(printf '%s' "$MSG" | grep -E "withheld|$TOKRE" 2>/dev/null | grep -o '[0-9][0-9]:[0-9][0-9]:[0-9][0-9]' 2>/dev/null | head -n 1)
+BADTIME=$(printf '%s' "$ACT7" | grep -E "withheld|$TOKRE" 2>/dev/null | grep -o '[0-9][0-9]:[0-9][0-9]:[0-9][0-9]' 2>/dev/null | head -n 1)
 if [ -n "$BADTIME" ]; then
   block "An act 7 line carries the time $BADTIME. Act 7 has no times in it.\\n\\nThe line shapes are exactly: <Role> $CHECK \\u2014 <TOKEN> (<agent_type>) and <Role> \\u2014 withheld (<TOKEN>) and <Role> \\u2014 withheld (role not convened), plus the fixed Release Manager line. The token and the agent type are the checkable parts; a time is not one of them.\\n\\n$HATCH"
 fi
@@ -150,6 +159,24 @@ if [ -n "$LASTIMPL" ] && [ -n "$LASTVER" ]; then
     block "The last verification of $TICKET ran at $LASTVER and the last change to the code landed at $LASTIMPL. Verification that precedes the change verified the previous state of the repository.\\n\\nConvene ceremony:qa again through the Agent tool, on the code as it stands now, and render act 6 and act 7 from what it returns. The convening gate allows a re-convening once the code has moved.\\n\\n$HATCH"
   fi
 fi
+
+# --- I: an act headed by an agent that never ran ----------------------------
+# An act heading that names a ceremony agent claims that agent produced the act.
+# Only heading lines are read, so quoting an agent type in prose costs nothing.
+for at in $(printf '%s' "$MSG" | grep '^[^A-Za-z]*[1-8] ' 2>/dev/null | grep -o 'ceremony:[a-z-]*' 2>/dev/null | sort -u); do
+  r=${at#ceremony:}
+  case "$r" in engineer|product-owner|architect|change-advisory-board|qa|steering-committee) ;; *) continue ;; esac
+  printf '%s' "$MINE" | grep -q '"role":"'"$r"'"' 2>/dev/null && continue
+  block "An act is headed $at, and $at did not run this turn. The ledger .ceremony/$TICKET/ledger.jsonl holds no entry for it, so whatever that act says - acceptance criteria, an estimate, a question to put to the user - was composed rather than collected.\\n\\nAn act whose agent was not convened is emitted with its number and heading and one line saying so, and the heading does not name an agent. An open question only stops the turn when the Product Owner really returned PO-CLARIFY and the ledger says so; an invented one stops the work for nothing.\\n\\nEither convene $at through the Agent tool and transcribe what comes back, or render that act as not convened and carry on with the work.\\n\\n$HATCH"
+done
+
+# --- J: a placeholder where the estimate goes -------------------------------
+HDR=$(printf '%s' "$MSG" | grep 'CEREMONY ' 2>/dev/null | head -n 1)
+case "$HDR" in
+  *'TBD'*|*'? pts'*|*'?pts'*|*'pending pts'*|*'N/A pts'*)
+    block "The header carries a placeholder where the points go. There is nothing to reserve a space for: the header is composed last, after the agents have returned, so the number is known by the time it is written.\\n\\nThe points value is the Product Owner's estimate, written the same way act 2 writes it. If the Product Owner was not convened at all, the header reads 0 pts (not estimated) and act 2 says the same.\\n\\n$HATCH"
+    ;;
+esac
 
 # --- H: the request handed back instead of answered -------------------------
 # A response with no ceremony bar anywhere, listing the ways out of the plugin,

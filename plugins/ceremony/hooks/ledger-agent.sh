@@ -62,6 +62,12 @@ fi
 
 DATA="${CLAUDE_PLUGIN_DATA:-}"
 [ -n "$DATA" ] || DATA="${TMPDIR:-/tmp}/ceremony-plugin-data"
+
+# A turn that asked to disband may not arm anything, whatever it does with the
+# record on disk. The marker is set by the turn-state hook from the prompt
+# itself, so it holds even if the removal command is mistyped or cut short.
+[ -f "$DATA/sessions/$SID.disbanding" ] && { rm -f "$TMPIN"; exit 0; }
+
 SENV="$DATA/sessions/$SID.env"
 TICKET=''
 [ -f "$SENV" ] && TICKET=$(sed -n 's/^CEREMONY_TICKET=//p' "$SENV" 2>/dev/null | tail -n 1)
@@ -120,7 +126,7 @@ ROOT="$CWD/.ceremony"
 DIR="$ROOT/$TICKET"
 mkdir -p "$DIR/evidence" 2>/dev/null || { rm -f "$TMPIN"; exit 0; }
 [ -f "$ROOT/.gitignore" ] || printf '*\n' > "$ROOT/.gitignore" 2>/dev/null || true
-[ -f "$ROOT/config.json" ] || printf '{"version":"2.0.2","enforce":"on"}\n' > "$ROOT/config.json" 2>/dev/null || true
+[ -f "$ROOT/config.json" ] || printf '{"version":"2.0.3","enforce":"on"}\n' > "$ROOT/config.json" 2>/dev/null || true
 
 N=$(ls "$DIR/evidence" 2>/dev/null | wc -l | tr -d ' ')
 case "$N" in ''|*[!0-9]*) N=0 ;; esac

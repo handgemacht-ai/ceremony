@@ -1,6 +1,8 @@
 #!/bin/sh
-# ceremony :: PostToolUse Edit|Write|NotebookEdit|MultiEdit
-# Records that the code moved, and when, so ordering is checkable.
+# ceremony :: PostToolUse Bash
+# A shell command that changed the working tree is an implementation too. The
+# write gate cannot see it - Bash is ungated on purpose - but the record can,
+# and rule D in the sign-off gate needs to know the code moved.
 set -u
 trap 'exit 0' EXIT
 
@@ -47,32 +49,33 @@ SENV="$DATA/sessions/$SID.env"
 TICKET=$(sed -n 's/^CEREMONY_TICKET=//p' "$SENV" 2>/dev/null | tail -n 1)
 [ -n "$TICKET" ] || exit 0
 
-# The edit is recorded even when no role has been convened yet: an unceremonious
-# turn is exactly the one the sign-off gate needs to know about. The ledger is
-# created here; config.json is not, so this never arms the write gate from
-# behind - only an agent return does that.
+# Outside a repository there is nothing to compare against, and guessing is
+# worse than not recording. Fail open, quietly, and cheaply.
+command -v git >/dev/null 2>&1 || exit 0
+git -C "$CWD" rev-parse --is-inside-work-tree >/dev/null 2>&1 || exit 0
+
+# The same pipeline, byte for byte, as the one in turn-state.sh and
+# ledger-edit.sh. A different one would compare two different measurements.
+STAMP=$({ git -C "$CWD" status --porcelain 2>/dev/null; git -C "$CWD" diff --numstat HEAD 2>/dev/null; } | cksum 2>/dev/null | tr -d ' \t')
+[ -n "$STAMP" ] || exit 0
+
+SEEN="$DATA/sessions/$SID.tree"
+PREV=$(cat "$SEEN" 2>/dev/null) || PREV=''
+printf '%s\n' "$STAMP" > "$SEEN" 2>/dev/null || true
+
+# The baseline is laid down at the start of the turn and refreshed by every
+# recorded edit, so what is left here is a change no other hook has seen.
+[ -n "$PREV" ] || exit 0
+[ "$PREV" = "$STAMP" ] && exit 0
+
 ROOT="$CWD/.ceremony"
 DIR="$ROOT/$TICKET"
 mkdir -p "$DIR" 2>/dev/null || exit 0
 [ -f "$ROOT/.gitignore" ] || printf '*\n' > "$ROOT/.gitignore" 2>/dev/null || true
 
-FILE=$(jget file_path)
-[ -n "$FILE" ] || FILE=$(jget notebook_path)
-[ -n "$FILE" ] || FILE='(unnamed)'
-FILE=$(printf '%s' "$FILE" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr -d '\000-\037')
-
 TS=$(date +%Y-%m-%dT%H:%M:%S%z 2>/dev/null) || TS=unknown
 
-printf '{"ts":"%s","session":"%s","ticket":"%s","role":"implementation","file":"%s"}\n' \
-  "$TS" "$SID" "$TICKET" "$FILE" >> "$DIR/ledger.jsonl" 2>/dev/null || true
-
-# This change is now on the record, so it is the new baseline. Without this the
-# Bash recorder would see the same change again and file it a second time.
-if command -v git >/dev/null 2>&1; then
-  if git -C "$CWD" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    ST=$({ git -C "$CWD" status --porcelain 2>/dev/null; git -C "$CWD" diff --numstat HEAD 2>/dev/null; } | cksum 2>/dev/null | tr -d ' \t')
-    [ -n "$ST" ] && printf '%s\n' "$ST" > "$DATA/sessions/$SID.tree" 2>/dev/null || true
-  fi
-fi
+printf '{"ts":"%s","session":"%s","ticket":"%s","role":"implementation","via":"bash","file":"(working tree)"}\n' \
+  "$TS" "$SID" "$TICKET" >> "$DIR/ledger.jsonl" 2>/dev/null || true
 
 exit 0

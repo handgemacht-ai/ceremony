@@ -52,6 +52,13 @@ fi
 
 DATA="${CLAUDE_PLUGIN_DATA:-}"
 [ -n "$DATA" ] || DATA="${TMPDIR:-/tmp}/ceremony-plugin-data"
+
+# --- a disband turn convenes nobody ------------------------------------------
+if [ -f "$DATA/sessions/$SID.disbanding" ]; then
+  printf '%s\n' "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"This turn is a /ceremony:disband. It convenes nobody: zero agents, no standup, no grooming, no board. Convening a role here would write the record the user just asked to have removed.\\n\\nRun the removal command from the command file, read the config back, and report what is gone. Act 7 is six withheld lines and the fixed Release Manager line, and every one of them is correct.\"}}"
+  exit 0
+fi
+
 # --- a ceremony role is convened synchronously, always ----------------------
 # An asynchronous agent reports back through a notification, and a notification
 # is not a tool result: PostToolUse only ever sees the launch stub, so the

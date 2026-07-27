@@ -68,16 +68,24 @@ Every agent is read-only: `Read`, `Grep`, `Glob`, `Bash`, and no `Edit` or
 `Write`. Every agent ends its reply with a closed-form verdict token, and only
 six tokens can produce a ✓.
 
-Cost is fixed and known before the turn starts:
+Cost is budgeted before the turn starts, and the budget is this:
 
 | Path | Agents convened |
 |---|---|
 | a greeting (LCP-1) | 0 |
 | a question (LCP-2) | 0 |
+| `/ceremony:disband` | 0 — the convening gate refuses every one |
 | small ticket, 1–3 points | 4, in 2 waves |
 | full ticket, 5–13 points | 5, in 3 stages |
 | plus `/ceremony:steering` | 6 |
 | a standalone `/ceremony:signoff`, `:cab` or `:standup` | 1 |
+
+A turn the `Stop` hook sends back can exceed its budget. The correction is
+written as a re-render from the ledger — the returns are already recorded, so
+nothing needs convening twice — and the convening gate refuses a repeat of a
+role that has already sat. Smaller models still sometimes re-run part of the
+ceremony after a correction, which is the one case where a turn costs more
+agents than the table says.
 
 ## Enforcement
 
@@ -90,19 +98,27 @@ v2 ships hooks. They are the part of the process that is not a suggestion.
 | `PreToolUse` on `Agent` | Rewrites every `ceremony:*` call to `run_in_background: false`, so the verdict comes back as a tool result and reaches the record. Refuses to convene the same role twice for one ticket, until the code has moved. |
 | `PostToolUse` on `Agent` | Appends the agent's entire return and its verdict to the ticket record. The model never writes this path. |
 | `PostToolUse` on writes | Records that the code moved, and when. |
-| `Stop` | Refuses to end a turn on a verdict token no agent returned — ticked or withheld — a tick on a token that withholds, a clock time in act 7, a file-changing turn rendered as a question or as bare prose, a sign-off assembled from an empty ledger, ticked boxes with no QA entry, a verification that ran before the change, or a turn that lists the ways out of the plugin and asks the user to choose instead of doing the work. |
+| `PostToolUse` on `Bash` | Compares the working tree against the state at the start of the turn. If a shell command changed it, that is an implementation entry too, marked `via: "bash"`. Post-hooks cannot refuse anything; this one only records, which is enough to bring shell writes under the rule that verification must follow the change. Outside a git repository it does nothing. |
+| `Stop` | Refuses to end a turn on a verdict token act 7 quotes that no agent returned — ticked or withheld — a tick on a token that withholds, a clock time in act 7, an act headed by an agent that never ran, a placeholder where the estimate goes, a file-changing turn rendered as a question or as bare prose, a sign-off assembled from an empty ledger, ticked boxes with no QA entry, a verification that ran before the change, or a turn that lists the ways out of the plugin and asks the user to choose instead of doing the work. |
 
-The `Stop` hook corrects at most twice per turn — enough for a turn that opens
-on the wrong path to reach the right one and then get its sign-off right, and
-not enough to loop. Every refusal names the way out and every refusal ends by
-telling the model to finish the turn rather than stop on it.
+Token checking is scoped to act 7. A response may quote a gate's own wording,
+a command file or a ticket note anywhere else without tripping anything; a
+signature is only a signature where signatures go.
+
+The `Stop` hook corrects at most **twice** per turn. Two, because a turn that
+opens on the wrong path usually needs one correction to reach the right one and
+a second to get its sign-off right — and because a cap is what makes the hook
+terminate at all. A third defect in the same turn ships unchecked; the counter
+resets when the next prompt arrives. Every refusal names the way out, and every
+refusal says the same two things: this is a re-render from the ledger, so
+convene nobody again, and finish the turn rather than stop on it.
 
 ### The `.ceremony/` contract
 
 ```text
 .ceremony/
   .gitignore                     "*" — the record ignores itself. Delete it to commit the trail.
-  config.json                    {"version":"2.0.2","enforce":"on"} - or "off", the disband tombstone
+  config.json                    {"version":"2.0.3","enforce":"on"} - or "off", the disband tombstone
   CER-<sprint>-<NN>/
     ticket.md                    append-only: every agent's entire return, under an act heading
     ledger.jsonl                 append-only: one line per verdict, one line per edit
@@ -121,10 +137,15 @@ The record is untracked by default. If you want the trail in git, delete
 
 Enforcement you cannot switch off is not a process, it is a trap. So:
 
-1. `/ceremony:disband` — removes the ticket records and leaves a tombstone,
-   `config.json` with `enforce: "off"`. Every hook reads it and stands down, and
-   no hook overwrites it, so nothing re-arms itself mid-session. Uses Bash,
-   which this plugin never gates. Only `/ceremony:grooming` arms it again.
+1. `/ceremony:disband` — writes the tombstone first, `config.json` with
+   `enforce: "off"`, and only then removes the ticket records, so the record
+   never exists without it. Every hook reads that file and stands down, and no
+   hook overwrites one that is already there. The turn convenes nobody: the
+   convening gate refuses every agent on a disband turn, and the ledger writer
+   refuses to arm anything, so a removal command that is mistyped or cut short
+   still cannot leave enforcement standing. Uses Bash, which this plugin never
+   gates. `/ceremony:grooming` removes the tombstone, and that is what lets the
+   next agent return arm the gates again.
 2. `CEREMONY_ENFORCE=off` in the environment — keeps the record, disarms the
    gates.
 3. `/hooks` — turns the hooks off for the session.
@@ -206,7 +227,7 @@ not review strategy. Where their conclusions conflict, both stand.
 |---|---|
 | `/ceremony:planning` | Takes the sprint and the day from the injected turn state, derives capacity, collects carry-over from the working tree, the stash list and the repository's own TODO markers, and commits to what fits. |
 | `/ceremony:standup` | Convenes the Engineer agent, which reads the last day of commits, the working tree, the branch and the stash list, and reports Yesterday / Today / Blockers from those facts only. |
-| `/ceremony:grooming` | Convenes the Product Owner agent, which reads the repository, writes acceptance criteria in checkable form and estimates in Fibonacci. This is the on-ramp that arms enforcement. |
+| `/ceremony:grooming` | Convenes the Product Owner agent, which reads the repository, writes acceptance criteria in checkable form and estimates in Fibonacci. It is also what clears a disband tombstone, so the record can start again. |
 | `/ceremony:rfc` | Investigates the codebase, writes a full RFC, then opens and closes a public comment period in which five ceremonial roles file five comments and receive five dispositions. |
 | `/ceremony:adr` | Convenes the Architect agent, which reads the codebase and writes a full Nygard ADR with real context and at least two rejected alternatives. Offers to persist it under `docs/adr/`. |
 | `/ceremony:cab` | Convenes the three-seat Change Advisory Board agent on the diff that was produced, which reads the changed files and issues board minutes with `file:line` findings. |
@@ -228,14 +249,15 @@ not recommendations.
 
 ## Known limitations (observed in dogfooding)
 
-Eight, plus one that is not a limitation. They were raised in retrospective
-and converted into action items (owner: unassigned, due: next sprint).
+Nine, plus one that is not a limitation. They were raised in retrospective and
+converted into action items (owner: unassigned, due: next sprint).
 
-- **The eight acts are not guaranteed around a ceremony command.** On smaller
-  models `/ceremony:planning`, `/ceremony:audit` and `/ceremony:disband`
-  sometimes return their artifact without the surrounding acts, and the turns
-  after a disband may lose them too. The artifact is unaffected; only the
-  ceremony is missing.
+- **The eight acts are not guaranteed on smaller models.** Around a ceremony
+  command, `/ceremony:planning` and `/ceremony:audit` sometimes return their
+  artifact without the surrounding acts, and the turns after a disband may lose
+  them too. On ordinary work turns the same models drop an act or render two of
+  them out of numeric order. The work and the artifact are unaffected; the
+  ceremony is what goes missing.
 - **The audit is stricter than the standard it audits.** It may record a FAIL
   against an item that was never ticked, and raise a non-conformity for a claim
   nobody made. No finding has been withdrawn.
@@ -246,32 +268,50 @@ and converted into action items (owner: unassigned, due: next sprint).
   again.** A conversation of six requests is six standups. Within a single turn
   the ticket is now stable, so a long turn is one ticket rather than several;
   across turns, the cost of the process is charged in full.
+- **A smaller model may still stop a turn on a question it invented.** The
+  gate now refuses an act headed by an agent that never ran, which is how the
+  invented clarification used to be dressed. A question asked in plain prose,
+  with no act heading and no agent named, is not caught by anything.
 - **The prose is not checked; the tokens are.** The gates check the verdicts in
   act 7, the marks in act 6 and the path the turn took. The sentences in acts 1,
   2, 3, 4 and 8 — yesterday's board, the rejected alternative, the retrospective
   action item — are composed by the model, and nothing verifies them. A checked
   sign-off can sit under an invented standup.
 - **The write gate covers `Edit` and `Write`, not `Bash`.** A heredoc written
-  through a shell command changes a file without passing the gate. Bash is left
-  ungated on purpose — it is what makes `/ceremony:disband` always work — and
-  the cost is that a determined turn can route around grooming. The record
-  still notices: the change lands without an implementation entry, and act 7
-  has nothing to quote for it.
-- **The sign-off gate reads the last message of a turn.** Smaller models
-  sometimes deliver one response as two or three messages, and only the final
-  one is checked. A wrong line in an earlier message goes past.
-- **QA can still leave a process running.** The served-artifact check now starts
-  the project's own command under `timeout`, so the server ends by itself
-  whether or not anything else goes to plan; a start command that spawns its own
-  children can still outlive it.
+  through a shell command changes a file without passing the gate, so a
+  determined turn can route around grooming. Bash is left ungated on purpose —
+  it is what makes `/ceremony:disband` always work. Since v2.0.3 the change is
+  at least recorded: a `PostToolUse` hook on `Bash` compares the working tree
+  and files an implementation entry marked `via: "bash"`. Recorded is not
+  refused, and a hook that runs after the command cannot be anything else.
+- **The sign-off gate reads the last message of a turn, and act 7 within it.**
+  Smaller models sometimes deliver one response as two or three messages, and
+  only the final one is checked. Token checking is scoped to the sign-off block,
+  which is what stops a quoted gate message from reading as a forged signature —
+  and it means a stray token in act 2 or act 6 is not checked either.
+- **QA's start command can outlive the check through its own children.** The
+  served-artifact check starts the project's own command under `timeout`, so the
+  command itself ends by itself; a start script that spawns background children
+  can leave those behind. No leak was observed in the most recent round.
 - The Change Advisory Board has never rejected anything. This is not a
   limitation.
 
-One thing to know rather than a limitation: `.ceremony/` appears in a repository
-the first time a turn changes a file, before you have asked for anything. It
-ignores itself — the directory ships a `.gitignore` containing `*` — and it
-arms nothing on its own: the gates stay off until `/ceremony:grooming` arms
-them. `/ceremony:disband` removes it.
+Two things to know rather than limitations.
+
+`.ceremony/` appears in a repository the first time a turn changes a file,
+before you have asked for anything. It ignores itself — the directory ships a
+`.gitignore` containing `*` — and it arms nothing on its own. `/ceremony:disband`
+removes it.
+
+Enforcement arms itself the first time an agent returns. The `PostToolUse` hook
+that writes the record creates `config.json` with `enforce: "on"`, and every
+gate reads that file. `/ceremony:grooming` is the recommended way in because it
+convenes the Product Owner, and after a disband it is what clears the tombstone
+so an agent return can arm the gates again — but it is not the mechanism, and
+any agent return does the same thing. The consequence is deliberate: in a
+repository the plugin has never touched, the first edit of the first turn is
+ungated, because arming a repository nobody asked to arm would be worse than
+letting one edit through.
 
 Closed by v2.0.1 and v2.0.2, recorded here because they were real: the ticket
 changing mid-turn when a background notification arrived; an agent's launch stub
@@ -281,9 +321,17 @@ improvising a server of its own; the eight-act format dropping on the very turns
 that changed code; a multi-file refactor estimated at one point; a ✓ on a token
 that withholds; act 7 missing the Architect line; invented clock times in act 7,
 now removed from the format entirely; a turn abandoned after a gate sent it back
-instead of finishing; `TBD pts` in the header; a question path that ended before
+instead of finishing; `TBD pts` in the header on sonnet; a question path that ended before
 its sign-off and closing line; a withheld line quoting a token no agent
 returned; and a malformed Product Owner return opening the write gate.
+
+Closed by v2.0.3: a `/ceremony:disband` that convened four agents, ran a
+truncated removal and let the next agent return re-arm the gates; a correction
+that re-ran the whole ceremony instead of re-rendering it from the ledger; a
+gate that read its own quoted wording as a forged signature; `? pts` in the
+header on smaller models; a clarification invented under an act heading naming
+a Product Owner that never ran; and a shell write that left no trace on the
+record.
 
 Three limitations from v1 were closed by v2: sprint numbers no longer disagree
 with the header, because only the hook derives them; the freeze line no longer

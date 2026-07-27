@@ -4,25 +4,31 @@ description: Remove the ceremony record from this repository and disarm enforcem
 
 Disband the ceremony for this repository.
 
-## 0. This turn is itself a ceremony
+## 0. This turn convenes nobody
 
-Like every `/ceremony:*` command, this one runs the standard eight-act path.
-The header comes first, acts 1 to 8 are all emitted and numbered, the closing
-line ends the response, and everything in the sections below — the inventory,
-the command, the four statements — goes inside act 5 in full. The ceremony is
-not skipped because its subject is the ceremony. A bare confirmation that the
-record was removed is the wrong shape for this turn.
+**Agent budget for this turn: zero.** No standup, no grooming, no ADR, no
+board, no QA. Not one `Agent` call, of any type, for any reason. The convening
+gate refuses every one of them on a disband turn, and it is right to: an agent
+return is what writes the record the user has just asked to have removed.
 
-Act 7 on this turn is six lines of `withheld (role not convened)` plus the
-fixed Release Manager line, and act 6 reads `No QA agent convened — Definition
-of Done not assessed.` The record those acts would have been assembled from is
-the thing this command just deleted, so there is nothing to quote and nothing
-to apologise for.
+The work of this turn is three Bash commands at most — list, remove, read back
+— and the sections below. Everything else is rendering.
 
-Every turn after this one keeps the same shape. Disbanding removes the record
-and disarms the gates; it does not end the output style, so the eight acts
-continue exactly as before, with every act 7 line withheld. `/output-style
-default` is what ends the ceremony, and it is named in section 5.
+The rendering is the eight acts, because this is a `/ceremony:*` command and
+they all render that way. Acts 1, 2, 3, 4 and 6 each say in one line that the
+role was not convened. Act 5 holds the sections below in full. Act 7 is six
+lines of `withheld (role not convened)` plus the fixed Release Manager line.
+Act 8 is the retrospective. The header and the closing line are the standard
+ones, with `0 pts (not estimated)`.
+
+Reading an act's own line as an instruction to go and convene that role is the
+one mistake this section exists to prevent. The acts are being reported, not
+performed.
+
+Every turn after this one keeps the eight-act shape too. Disbanding removes the
+record and disarms the gates; it does not end the output style, so the acts
+continue, unenforced, with every act 7 line withheld. `/output-style default`
+is what ends the ceremony, and it is named in section 5.
 
 ## 1. Say what is there first
 
@@ -31,29 +37,38 @@ many ledger entries each has, and how many evidence files. One line per ticket.
 
 If `.ceremony/` does not exist, say so in one line and stop. Nothing to disband.
 
-## 2. Remove it, and leave the tombstone
+## 2. Write the tombstone first, then remove the records
 
-Run, with Bash, as one command:
+Run, with Bash, exactly this, as one command, copied verbatim:
 
 ```sh
-rm -rf .ceremony && mkdir -p .ceremony && printf '*\n' > .ceremony/.gitignore && printf '{"version":"2.0.2","enforce":"off"}\n' > .ceremony/config.json
+mkdir -p .ceremony && printf '*\n' > .ceremony/.gitignore && printf '{"version":"2.0.3","enforce":"off"}\n' > .ceremony/config.json && find .ceremony -mindepth 1 -maxdepth 1 -type d -exec rm -rf {} + && cat .ceremony/config.json
 ```
 
 Bash is never gated by this plugin, so this always works. That is deliberate:
 enforcement a user cannot switch off is not a process, it is a trap.
 
-The tombstone is the second half of the command and it is not optional. Every
-hook reads `.ceremony/config.json` and stands down when `enforce` is not `"on"`,
-and no hook ever overwrites a config file that already exists. Without the
-tombstone the next agent return would recreate the record and re-arm the gates
-mid-session, which is not disbanding, it is a pause.
+The order is the whole point and it is not to be rearranged. The tombstone is
+written **before** anything is removed, so there is never an instant in which
+`.ceremony/` exists without a config that reads `enforce: off`. Every hook
+reads that file and stands down; no hook ever overwrites one that already
+exists. `rm -rf .ceremony` on its own — the whole directory, tombstone and all
+— is the failure this ordering prevents: it leaves a gap in which the next
+agent return recreates the record with `enforce: "on"`, and the user who asked
+to disband ends the turn more enforced than they started it.
 
-## 3. State what was removed
+`find … -type d` removes the ticket directories and leaves `config.json` and
+`.gitignore` standing. The final `cat` is the verification read, and its output
+goes in section 3. If it does not print `"enforce":"off"`, run the command
+again before saying anything else; nothing has been disbanded until that line
+has been read back.
+
+## 3. State what was removed, and quote the read-back
 
 Name what is gone: the ticket records, the ledger, the evidence files. What
-remains is `.ceremony/config.json` reading `enforce: off`, and the `.gitignore`
-beside it. Nothing was tracked by git, so nothing was staged and nothing needs
-unstaging.
+remains is `.ceremony/config.json` and the `.gitignore` beside it. Quote the
+line the final `cat` printed, so the claim and its evidence sit together.
+Nothing was tracked by git, so nothing was staged and nothing needs unstaging.
 
 ## 4. State what changed
 
@@ -82,3 +97,5 @@ ceremony@ceremony` removes the plugin.
   `.gitignore`, or any file the user wrote.
 - Do not argue with the request and do not ask for confirmation. The user chose
   the ceremony; they may unchoose it.
+- Zero `Agent` calls. Repeated here because it is the rule most easily lost
+  between section 0 and the rendering of act 1.

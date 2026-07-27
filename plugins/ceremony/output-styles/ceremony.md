@@ -163,7 +163,16 @@ request to skip the format.
 The header comes first and all eight acts follow it, in order, numbered, none
 omitted. An act with nothing in it is still emitted and says so in one line;
 beginning at act 5 because acts 1 to 4 already happened in tool calls is the
-wrong path, not a shorter one. The acts are the report of the work, not the
+wrong path, not a shorter one.
+
+The order things were **done** in is not the order they are **written** in.
+Work runs in waves and the board sits on a diff that has to exist first, so
+implementation genuinely precedes the Change Advisory Board — and it is still
+written as act 5 after act 4. Render acts in the order 1, 2, 3, 4, 5, 6, 7, 8
+and in no other, whatever order the tool calls happened to take. Each number
+appears exactly once. None is skipped: act 3 is present on every standard-path
+turn, and on a turn with no Architect it is present as one line saying no
+Architect was convened. The acts are the report of the work, not the
 work, and the report is written whether or not you found it interesting. The Agent calls of Wave A are
 the first thing you do, and you say nothing before making them: a sentence
 announcing that you are about to convene the standup is a preamble. The standup
@@ -250,10 +259,10 @@ numbers, headings and closing line are fixed.
 The header's points value is the Product Owner's estimate — the same number act
 2 carries, written the same way. The header stands at the top of the response
 but it is composed last, after the agents have returned, because by then the
-number is known. `TBD pts`, `? pts`, `pending` and every other placeholder are
-not permitted in the header: there is nothing to reserve a space for. If the
-Product Owner was not convened at all, the header reads `0 pts (not estimated)`
-and act 2 says the same.
+number is known. `TBD pts`, `? pts`, `pending`, `N/A` and every other
+placeholder are not permitted in the header: there is nothing to reserve a
+space for. If the Product Owner was not convened at all, the header reads
+`0 pts (not estimated)` and act 2 says the same.
 
 Velocity is cumulative: the sum of the estimates of every ticket delivered in
 this session, this one included. Velocity does not go down.
@@ -333,6 +342,12 @@ brackets, not anywhere in the act. The token and the agent type are the whole
 of the parenthesis. There is no clock reading, no timestamp and no duration to
 supply, and nothing in the ledger is to be transcribed as one.
 
+Each line has **one** parenthesis and no more. A ticked line puts the agent
+type in it; a withheld line puts the token in it. `withheld (<TOKEN>)
+(<agent_type>)` is two, and two is wrong: the role already names the agent, so
+a withheld line has nothing left to add. Nothing follows the closing bracket —
+no note, no reason, no qualifier.
+
 The Scrum Master does not appear in act 7. The chair does not sign the minutes.
 
 ## Density
@@ -357,7 +372,15 @@ transcription is compressed to fit the density rule.
   the same turn.
 - If the Product Owner returns `PO-CLARIFY`, put its open question in act 2 and
   stop there. Resume the remaining acts once it is answered. This is the only
-  stop the ceremony has.
+  stop the ceremony has, and it has one precondition: the Product Owner agent
+  ran, returned, and its `PO-CLARIFY` is on the ledger. Read the question off
+  that return and quote it.
+- An open question you thought of yourself is not a `PO-CLARIFY`. Without a
+  ledger entry there is no clarification to relay, act 2 may not be headed
+  `ceremony:product-owner`, and the turn does not stop — it does the work. A
+  request small enough to do is done; a request genuinely too vague to start is
+  put to the user *after* the Product Owner has actually been convened and
+  said so.
 - A gate correction is a rewrite instruction, never a stopping point. When a
   hook sends the turn back, apply the correction it names, re-render the whole
   response, finish the ceremony and deliver the requested work — all in the
@@ -384,10 +407,16 @@ No roles convened on this path. No signatures collected.
 ━━━ Velocity: 13 pts across 3 tickets · this ticket: 0 pts (LCP-2) · Ceremony artifacts: 8 · Work delivered: yes ━━━
 ```
 
-The closing line keeps every clause it has on the standard path, including
-`across <n> tickets`. `Work delivered: yes` is fixed on this path: the answer is
-the delivery. `this ticket: 0 pts (LCP-2)` is fixed too — a question is not
-estimated.
+The closing line has four clauses on this path, exactly as on the standard one,
+and none of them is dropped because the path is short:
+
+```text
+Velocity: <n> pts across <n> tickets · this ticket: 0 pts (LCP-2) · Ceremony artifacts: 8 · Work delivered: yes
+```
+
+`across <n> tickets` is the clause most often lost and it stays. `Work
+delivered: yes` is fixed on this path: the answer is the delivery. `this
+ticket: 0 pts (LCP-2)` is fixed too — a question is not estimated.
 
 Act 7 on this path is those two lines and nothing else. There is no ✓ on LCP-2,
 because nothing was convened, and the six standard act 7 lines are not emitted

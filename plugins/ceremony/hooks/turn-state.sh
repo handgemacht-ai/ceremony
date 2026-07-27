@@ -169,6 +169,24 @@ TSTART=$(date +%Y-%m-%dT%H:%M:%S%z 2>/dev/null) || TSTART=''
 
 rm -f "$SDIR/$SID.corrections" 2>/dev/null || true
 
+# A disband turn arms nothing, whatever else happens in it. The marker is set
+# from the prompt rather than from the record, so a removal command that is
+# mistyped, truncated or never run cannot leave enforcement standing.
+rm -f "$SDIR/$SID.disbanding" 2>/dev/null || true
+case "$RAW" in
+  *'/ceremony:disband'*) : > "$SDIR/$SID.disbanding" 2>/dev/null || true ;;
+esac
+
+# The state of the working tree as this turn begins. The Bash recorder compares
+# against it, which is how a shell command that writes a file gets on the
+# record despite never passing a write gate.
+if command -v git >/dev/null 2>&1; then
+  if git -C "$CWD" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    TREE=$({ git -C "$CWD" status --porcelain 2>/dev/null; git -C "$CWD" diff --numstat HEAD 2>/dev/null; } | cksum 2>/dev/null | tr -d ' \t')
+    [ -n "$TREE" ] && printf '%s\n' "$TREE" > "$SDIR/$SID.tree" 2>/dev/null || true
+  fi
+fi
+
 # --- ledger summary ---------------------------------------------------------
 LEDGER="$CWD/.ceremony/$TICKET/ledger.jsonl"
 COUNT=0
@@ -199,10 +217,11 @@ fi
   printf 'enforcement: %s\n' "$ENFORCE"
   printf 'path: a turn that will change any file runs the 8 acts and convenes ceremony:product-owner before the first edit; a question runs LCP-2; a greeting runs LCP-1.\n'
   printf 'shape: on the 8-act path the header comes first and acts 1-8 are all emitted, numbered, in one message. Starting at act 5 is the wrong path, not a shorter one. LCP-2 is 4 parts and all 4 are emitted: header, act 5, act 7, closing line.\n'
-  printf 'header: the pts in the header is the Product Owner estimate from act 2, so the header is composed last, once the agents have returned. Never TBD, never a placeholder.\n'
-  printf 'sign-off: act 7 quotes only tokens agents actually returned this turn - ticked or withheld alike. A role that did not run gets exactly "withheld (role not convened)". No clock times anywhere in act 7.\n'
-  printf 'agents: every ceremony:* Agent call is issued with run_in_background false.\n'
-  printf 'blocks: if a hook sends this turn back, apply the correction it names, re-render, finish the ceremony and deliver the work in the same turn. It is a rewrite instruction, never a reason to stop or to ask the user to choose.\n'
+  printf 'order: acts are rendered 1,2,3,4,5,6,7,8 whatever order the work happened in - the board really does sit after the edit and is still written as act 4. Each number once, none skipped.\n'
+  printf 'header: the pts in the header is the Product Owner estimate from act 2, so the header is composed last, once the agents have returned. Never TBD, never ?, never a placeholder; with no Product Owner it is 0 pts (not estimated).\n'
+  printf 'sign-off: act 7 quotes only tokens agents actually returned this turn - ticked or withheld alike. A role that did not run gets exactly "withheld (role not convened)". One parenthesis per line, no clock times anywhere in act 7.\n'
+  printf 'agents: every ceremony:* Agent call is issued with run_in_background false. An act heading may name a ceremony:* agent only if that agent ran this turn, and only a real PO-CLARIFY on the ledger stops a turn for a question.\n'
+  printf 'blocks: if a hook sends this turn back, apply the correction it names and re-render from the ledger - convene nobody again, the returns are already recorded. Finish the ceremony and deliver the work in the same turn. A turn is corrected at most twice; after that it ships as written.\n'
 } > "$SBLK" 2>/dev/null
 
 cat "$SBLK" 2>/dev/null
