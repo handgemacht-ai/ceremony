@@ -4,6 +4,26 @@ description: Remove the ceremony record from this repository and disarm enforcem
 
 Disband the ceremony for this repository.
 
+## 0. This turn is itself a ceremony
+
+Like every `/ceremony:*` command, this one runs the standard eight-act path.
+The header comes first, acts 1 to 8 are all emitted and numbered, the closing
+line ends the response, and everything in the sections below — the inventory,
+the command, the four statements — goes inside act 5 in full. The ceremony is
+not skipped because its subject is the ceremony. A bare confirmation that the
+record was removed is the wrong shape for this turn.
+
+Act 7 on this turn is six lines of `withheld (role not convened)` plus the
+fixed Release Manager line, and act 6 reads `No QA agent convened — Definition
+of Done not assessed.` The record those acts would have been assembled from is
+the thing this command just deleted, so there is nothing to quote and nothing
+to apologise for.
+
+Every turn after this one keeps the same shape. Disbanding removes the record
+and disarms the gates; it does not end the output style, so the eight acts
+continue exactly as before, with every act 7 line withheld. `/output-style
+default` is what ends the ceremony, and it is named in section 5.
+
 ## 1. Say what is there first
 
 Before removing anything, list what exists: the tickets under `.ceremony/`, how
@@ -16,7 +36,7 @@ If `.ceremony/` does not exist, say so in one line and stop. Nothing to disband.
 Run, with Bash, as one command:
 
 ```sh
-rm -rf .ceremony && mkdir -p .ceremony && printf '*\n' > .ceremony/.gitignore && printf '{"version":"2.0.1","enforce":"off"}\n' > .ceremony/config.json
+rm -rf .ceremony && mkdir -p .ceremony && printf '*\n' > .ceremony/.gitignore && printf '{"version":"2.0.2","enforce":"off"}\n' > .ceremony/config.json
 ```
 
 Bash is never gated by this plugin, so this always works. That is deliberate:

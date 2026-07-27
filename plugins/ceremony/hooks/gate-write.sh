@@ -1,6 +1,6 @@
 #!/bin/sh
 # ceremony :: PreToolUse Edit|Write|NotebookEdit|MultiEdit
-# Two refusals: writing the record yourself, and writing code before grooming.
+# Two refusals: writing the record yourself, and writing code before acceptance.
 set -u
 trap 'exit 0' EXIT
 
@@ -64,10 +64,17 @@ TICKET=$(sed -n 's/^CEREMONY_TICKET=//p' "$SENV" 2>/dev/null | tail -n 1)
 [ -n "$TICKET" ] || exit 0
 
 LEDGER="$CWD/.ceremony/$TICKET/ledger.jsonl"
-if [ -f "$LEDGER" ]; then
-  if grep '"session":"'"$SID"'"' "$LEDGER" 2>/dev/null | grep -q '"role":"product-owner"'; then
-    exit 0
-  fi
+PO=''
+[ -f "$LEDGER" ] && PO=$(grep '"session":"'"$SID"'"' "$LEDGER" 2>/dev/null | grep '"role":"product-owner"')
+
+# The gate opens on acceptance, not on attendance. A Product Owner that asked a
+# question, or whose return could not be read, has accepted nothing.
+printf '%s' "$PO" | grep -q '"verdict":"PO-ACCEPT"' 2>/dev/null && exit 0
+
+if [ -n "$PO" ]; then
+  VERD=$(printf '%s' "$PO" | sed -n 's/.*"verdict":"\([^"]*\)".*/\1/p' | tail -n 1)
+  [ -n "$VERD" ] || VERD=MALFORMED
+  deny "The Product Owner was convened for $TICKET and returned $VERD. Only PO-ACCEPT opens this gate; $VERD accepts nothing, so there are still no criteria this edit could be measured against.\\n\\nIf $VERD is PO-CLARIFY, the ticket is not ready: put the Product Owner's question to the user and stop there. If $VERD is MALFORMED, the return could not be read: call the Agent tool again with subagent_type \\\"ceremony:product-owner\\\" and a brief that names the file, the change and the user's words, then edit.\\n\\nIf you do not want the ceremony: run /ceremony:disband to remove .ceremony/, or set CEREMONY_ENFORCE=off in the environment, or turn the hooks off with /hooks."
 fi
 
 deny "Ticket $TICKET has no acceptance criteria. The Product Owner has not been convened for this ticket in this session, so there is nothing this edit could be measured against.\\n\\nConvene grooming first: call the Agent tool with subagent_type \\\"ceremony:product-owner\\\", wait for it to return, then edit. Wave A convenes ceremony:engineer and ceremony:product-owner in one message.\\n\\nIf you do not want the ceremony: run /ceremony:disband to remove .ceremony/, or set CEREMONY_ENFORCE=off in the environment, or turn the hooks off with /hooks."

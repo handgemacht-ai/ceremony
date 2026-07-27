@@ -46,17 +46,24 @@ command **the project itself defines**.
 2. If none of those five defines a start command, the result is
    `BLOCKED · <item> — searched package.json scripts, justfile, Procfile,
    Makefile, docker-compose.yml; no start command defined`. Stop there.
-3. If one exists, run it in the background, wait for it with a bounded loop,
-   request the artifact, and grep the bytes that came back for the thing the
-   criterion claims. Do all of that in one compound Bash command so the process
-   is always stopped again:
+3. If one exists, start it under `timeout` so it stops itself, wait for it with
+   a bounded loop, request the artifact, and grep the bytes that came back for
+   the thing the criterion claims. One Bash command, these four lines, with the
+   three angle-bracket placeholders filled in and nothing else changed:
 
    ```sh
-   (<the project's own start command>) >/tmp/ceremony-qa.log 2>&1 & P=$!; \
-   for i in 1 2 3 4 5 6 7 8 9 10; do curl -fsS <url> >/dev/null 2>&1 && break; sleep 1; done; \
-   curl -fsS <url of the artifact> | grep -n '<the expected thing>'; R=$?; \
-   kill $P 2>/dev/null; wait $P 2>/dev/null; exit $R
+   timeout 60 <the project's own start command> >/tmp/ceremony-qa.log 2>&1 &
+   for i in 1 2 3 4 5 6 7 8 9 10; do curl -fsS <url> >/dev/null 2>&1 && break; sleep 1; done
+   curl -fsS <url of the artifact> | grep -n '<the expected thing>'
+   tail -n 20 /tmp/ceremony-qa.log
    ```
+
+   The `timeout 60` is what makes this safe to run: the server ends on its own
+   after a minute whether or not anything else goes to plan. There is no kill
+   step, nothing to remember at the end, and no process left behind. A start
+   command written with a bare `&` and no `timeout` in front of it is the one
+   mistake this section exists to prevent - it leaves a server running on the
+   user's machine after you have returned.
 
 4. The evidence is what the served bytes said. Reading the source file is not
    evidence for a served-artifact criterion: the file is what was written, the
@@ -101,9 +108,13 @@ One attempt per check. You do not debug.
 ## 6. Budget
 
 At most 12 Bash commands in total. Every one carries an explicit `timeout` of
-at most 120000 milliseconds. Stop every background process you started, in the
-same command that started it. When the budget is spent, the remaining items are
+at most 120000 milliseconds. When the budget is spent, the remaining items are
 `BLOCKED · <item> — check budget exhausted after 12 commands`.
+
+Every process you send to the background is wrapped in `timeout 60`, exactly as
+in the served-artifact shape above. This is a rule about the text you write:
+the characters `&` at the end of a line are only ever permitted on a line that
+begins with `timeout`. Nothing you start outlives the check that needed it.
 
 ## 7. The twelve standing items
 

@@ -52,9 +52,9 @@ Act 7 is assembled from what the agents returned this turn — the entries in
 Three line shapes, and one fixed line:
 
 ```text
-<Role> ✓ — <TOKEN> (<agent_type>, <hh:mm:ss>)
-<Role> — withheld (role not convened)
+<Role> ✓ — <TOKEN> (<agent_type>)
 <Role> — withheld (<TOKEN>)
+<Role> — withheld (role not convened)
 Release Manager — no agent convened; freeze waiver applied by calendar rule.
 ```
 
@@ -62,6 +62,13 @@ A ✓ may be written only for `PO-ACCEPT`, `ARCH-RECORDED`, `CAB-APPROVED`,
 `CAB-APPROVED-WITH-CONDITIONS`, `QA-PASS` and `SC-ALIGNED-WITH-RESERVATIONS`,
 and only where a ledger entry from this turn carries that token. Everything
 else withholds, with the token in the brackets.
+
+A token in brackets is as much a quotation as a ticked one, so it needs a ledger
+entry too. A role that did not run gets `withheld (role not convened)` and
+nothing else.
+
+There are no times in act 7. The parenthesis holds the token or the agent type,
+and never a clock reading.
 
 The Scrum Master does not appear. The chair does not sign the minutes.
 

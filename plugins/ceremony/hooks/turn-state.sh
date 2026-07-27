@@ -167,6 +167,8 @@ TSTART=$(date +%Y-%m-%dT%H:%M:%S%z 2>/dev/null) || TSTART=''
   printf 'CEREMONY_CWD=%s\n' "$CWD"
 } > "$SENV" 2>/dev/null || true
 
+rm -f "$SDIR/$SID.corrections" 2>/dev/null || true
+
 # --- ledger summary ---------------------------------------------------------
 LEDGER="$CWD/.ceremony/$TICKET/ledger.jsonl"
 COUNT=0
@@ -196,8 +198,11 @@ fi
   printf 'ledger: .ceremony/%s/ledger.jsonl - %s entries, %s\n' "$TICKET" "$COUNT" "$ROLES"
   printf 'enforcement: %s\n' "$ENFORCE"
   printf 'path: a turn that will change any file runs the 8 acts and convenes ceremony:product-owner before the first edit; a question runs LCP-2; a greeting runs LCP-1.\n'
-  printf 'shape: on the 8-act path the header comes first and acts 1-8 are all emitted, numbered, in one message. Starting at act 5 is the wrong path, not a shorter one.\n'
+  printf 'shape: on the 8-act path the header comes first and acts 1-8 are all emitted, numbered, in one message. Starting at act 5 is the wrong path, not a shorter one. LCP-2 is 4 parts and all 4 are emitted: header, act 5, act 7, closing line.\n'
+  printf 'header: the pts in the header is the Product Owner estimate from act 2, so the header is composed last, once the agents have returned. Never TBD, never a placeholder.\n'
+  printf 'sign-off: act 7 quotes only tokens agents actually returned this turn - ticked or withheld alike. A role that did not run gets exactly "withheld (role not convened)". No clock times anywhere in act 7.\n'
   printf 'agents: every ceremony:* Agent call is issued with run_in_background false.\n'
+  printf 'blocks: if a hook sends this turn back, apply the correction it names, re-render, finish the ceremony and deliver the work in the same turn. It is a rewrite instruction, never a reason to stop or to ask the user to choose.\n'
 } > "$SBLK" 2>/dev/null
 
 cat "$SBLK" 2>/dev/null

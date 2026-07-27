@@ -86,20 +86,23 @@ v2 ships hooks. They are the part of the process that is not a suggestion.
 | Hook | What it does |
 |---|---|
 | `UserPromptSubmit` | Derives the sprint, day, ticket, change reference and freeze window once, and injects them. Nothing downstream recomputes a date. |
-| `PreToolUse` on writes | Refuses an edit to `.ceremony/`, and refuses an edit to code on a ticket whose Product Owner was never convened. |
+| `PreToolUse` on writes | Refuses an edit to `.ceremony/`, and refuses an edit to code on a ticket whose Product Owner has not returned `PO-ACCEPT`. Attendance is not acceptance: a question or an unreadable return leaves the gate shut. |
 | `PreToolUse` on `Agent` | Rewrites every `ceremony:*` call to `run_in_background: false`, so the verdict comes back as a tool result and reaches the record. Refuses to convene the same role twice for one ticket, until the code has moved. |
 | `PostToolUse` on `Agent` | Appends the agent's entire return and its verdict to the ticket record. The model never writes this path. |
 | `PostToolUse` on writes | Records that the code moved, and when. |
-| `Stop` | Refuses to end a turn on a forged signature, a tick on a token that withholds, a file-changing turn rendered as a question or as bare prose, a sign-off assembled from an empty ledger, ticked boxes with no QA entry, or a verification that ran before the change. |
+| `Stop` | Refuses to end a turn on a verdict token no agent returned — ticked or withheld — a tick on a token that withholds, a clock time in act 7, a file-changing turn rendered as a question or as bare prose, a sign-off assembled from an empty ledger, ticked boxes with no QA entry, a verification that ran before the change, or a turn that lists the ways out of the plugin and asks the user to choose instead of doing the work. |
 
-The `Stop` hook corrects at most once per turn. Every refusal names the way out.
+The `Stop` hook corrects at most twice per turn — enough for a turn that opens
+on the wrong path to reach the right one and then get its sign-off right, and
+not enough to loop. Every refusal names the way out and every refusal ends by
+telling the model to finish the turn rather than stop on it.
 
 ### The `.ceremony/` contract
 
 ```text
 .ceremony/
   .gitignore                     "*" — the record ignores itself. Delete it to commit the trail.
-  config.json                    {"version":"2.0.1","enforce":"on"} - or "off", the disband tombstone
+  config.json                    {"version":"2.0.2","enforce":"on"} - or "off", the disband tombstone
   CER-<sprint>-<NN>/
     ticket.md                    append-only: every agent's entire return, under an act heading
     ledger.jsonl                 append-only: one line per verdict, one line per edit
@@ -225,31 +228,68 @@ not recommendations.
 
 ## Known limitations (observed in dogfooding)
 
-Five. They were raised in retrospective and converted into action items (owner:
-unassigned, due: next sprint).
+Eight, plus one that is not a limitation. They were raised in retrospective
+and converted into action items (owner: unassigned, due: next sprint).
 
-- The eight acts are not guaranteed around a ceremony command. On smaller models
-  `/ceremony:planning` and `/ceremony:audit` sometimes return their artifact
-  without the surrounding acts. The artifact is unaffected; only the ceremony is
-  missing.
-- The audit is stricter than the standard it audits. It may record a FAIL
+- **The eight acts are not guaranteed around a ceremony command.** On smaller
+  models `/ceremony:planning`, `/ceremony:audit` and `/ceremony:disband`
+  sometimes return their artifact without the surrounding acts, and the turns
+  after a disband may lose them too. The artifact is unaffected; only the
+  ceremony is missing.
+- **The audit is stricter than the standard it audits.** It may record a FAIL
   against an item that was never ticked, and raise a non-conformity for a claim
   nobody made. No finding has been withdrawn.
-- A sentence occasionally precedes the ceremony header. Suppression is
-  approximately sixty per cent effective. The Scrum Master regards the remainder
-  as pre-standup chatter.
-- Every request raises a new ticket, and a new ticket convenes the roles again.
-  A conversation of six requests is six standups. This is the cost of the
-  process, and it is charged in full.
+- **A message occasionally precedes the ceremony header**, more often on smaller
+  models than on larger ones. Suppression is partial and no figure is claimed
+  for it. The Scrum Master regards the remainder as pre-standup chatter.
+- **Each request raises its own ticket, and a new ticket convenes the roles
+  again.** A conversation of six requests is six standups. Within a single turn
+  the ticket is now stable, so a long turn is one ticket rather than several;
+  across turns, the cost of the process is charged in full.
+- **The prose is not checked; the tokens are.** The gates check the verdicts in
+  act 7, the marks in act 6 and the path the turn took. The sentences in acts 1,
+  2, 3, 4 and 8 — yesterday's board, the rejected alternative, the retrospective
+  action item — are composed by the model, and nothing verifies them. A checked
+  sign-off can sit under an invented standup.
+- **The write gate covers `Edit` and `Write`, not `Bash`.** A heredoc written
+  through a shell command changes a file without passing the gate. Bash is left
+  ungated on purpose — it is what makes `/ceremony:disband` always work — and
+  the cost is that a determined turn can route around grooming. The record
+  still notices: the change lands without an implementation entry, and act 7
+  has nothing to quote for it.
+- **The sign-off gate reads the last message of a turn.** Smaller models
+  sometimes deliver one response as two or three messages, and only the final
+  one is checked. A wrong line in an earlier message goes past.
+- **QA can still leave a process running.** The served-artifact check now starts
+  the project's own command under `timeout`, so the server ends by itself
+  whether or not anything else goes to plan; a start command that spawns its own
+  children can still outlive it.
 - The Change Advisory Board has never rejected anything. This is not a
   limitation.
 
-Three limitations from v1 were closed by v2 and are recorded here as closed:
-sprint numbers no longer disagree with the header, because only the hook derives
-them; the freeze line no longer drifts, because the hook writes it as a finished
-sentence; and the sign-off no longer disagrees with the checklist, because both
-are transcribed from the same agent return and the `Stop` hook checks the
-result.
+One thing to know rather than a limitation: `.ceremony/` appears in a repository
+the first time a turn changes a file, before you have asked for anything. It
+ignores itself — the directory ships a `.gitignore` containing `*` — and it
+arms nothing on its own: the gates stay off until `/ceremony:grooming` arms
+them. `/ceremony:disband` removes it.
+
+Closed by v2.0.1 and v2.0.2, recorded here because they were real: the ticket
+changing mid-turn when a background notification arrived; an agent's launch stub
+recorded as a `MALFORMED` return; a disband that re-armed itself on the next
+agent return; a turn that edited a file rendered as the question path; QA
+improvising a server of its own; the eight-act format dropping on the very turns
+that changed code; a multi-file refactor estimated at one point; a ✓ on a token
+that withholds; act 7 missing the Architect line; invented clock times in act 7,
+now removed from the format entirely; a turn abandoned after a gate sent it back
+instead of finishing; `TBD pts` in the header; a question path that ended before
+its sign-off and closing line; a withheld line quoting a token no agent
+returned; and a malformed Product Owner return opening the write gate.
+
+Three limitations from v1 were closed by v2: sprint numbers no longer disagree
+with the header, because only the hook derives them; the freeze line no longer
+drifts, because the hook writes it as a finished sentence; and the sign-off no
+longer disagrees with the checklist, because both are transcribed from the same
+agent return and the `Stop` hook checks the result.
 
 ## FAQ
 
