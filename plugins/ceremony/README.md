@@ -31,7 +31,7 @@ turn it on. See **Enable the output style** in the
 - `commands/cab.md` — the Change Advisory Board, on the diff that was produced.
 - `commands/steering.md` — the quarterly Steering Committee, with objectives
   drafted from the repository.
-- `commands/signoff.md` — the twelve-item Definition of Done, assessed by the QA
+- `commands/signoff.md` — the Definition of Done, assessed by the QA
   agent and transcribed verbatim.
 - `commands/ticket.md` — the ticket record, the ledger and the evidence listing.
 - `commands/retro.md` — the sprint retrospective, read off the ledger.
@@ -53,7 +53,8 @@ turn it on. See **Enable the output style** in the
 ## The record
 
 The hooks keep `.ceremony/` in the working repository: `ticket.md` with every
-agent's entire return, `ledger.jsonl` with one line per verdict and one line per
+agent's entire return, `ledger.jsonl` with one line per verdict — carrying the
+conditions the board raised and the checks QA could not run — and one line per
 edit, and `evidence/` with the raw hook payloads. It ignores itself via
 `.ceremony/.gitignore` containing `*`; delete that file to commit the trail.
 
@@ -69,6 +70,21 @@ ceremony.
 
 The `Stop` hook corrects a turn at most twice. A third defect in the same turn
 ships unchecked; the count resets with the next prompt.
+
+## Conditions and escalation
+
+Every condition the Change Advisory Board raises is answered in act 4 with one
+line, in one of three closed forms — `applied`, `waived`, or `carried` with an
+owner and a due date that appear again in act 8. The `Stop` hook counts the
+conditions against the dispositions. Applying one moves the code after the board
+looked, so QA sits a second time on the code as it now stands: an applied
+condition is one extra agent, and that is the price of acting on advice.
+
+When QA marks any check `BLOCKED` — a missing toolchain, a start command that is
+not there — the response carries an escalation block between act 8 and the
+closing line, quoting the exact command that failed and naming the decision the
+user has to make, and the closing line ends `Work delivered: yes · Verification:
+blocked (escalated)`. The blocker is reported, never repaired.
 
 ## Known limitations (observed in dogfooding)
 
@@ -94,9 +110,11 @@ and converted into action items (owner: unassigned, due: next sprint).
   refuses an act headed by an agent that never ran, which is how the invented
   clarification used to be dressed. A question asked in plain prose, with no act
   heading and no agent named, is not caught by anything.
-- The prose is not checked; the tokens are. The gates check the verdicts in act
-  7, the marks in act 6 and the path the turn took. The sentences in acts 1, 2,
-  3, 4 and 8 are composed by the model, and nothing verifies them.
+- The prose is not checked; the counts are. The gates check the verdicts in act
+  7, the marks in act 6, the number of dispositions in act 4 and the path the
+  turn took. The sentences in acts 1, 2, 3, 4 and 8 are composed by the model,
+  and nothing verifies them — including the reason in a waived condition and the
+  command quoted in an escalation.
 - The write gate covers `Edit` and `Write`, not `Bash`. A heredoc through a
   shell command changes a file without passing the gate. Bash is ungated on
   purpose, so that `/ceremony:disband` always works. Since v2.0.3 the change is
@@ -142,6 +160,12 @@ that re-ran the whole ceremony instead of re-rendering it from the ledger; a gat
 that read its own quoted wording as a forged signature; `? pts` in the header on
 smaller models; a clarification invented under an act heading naming a Product
 Owner that never ran; and a shell write that left no trace on the record.
+
+Closed by v2.1.0: a Change Advisory Board whose conditions were never applied,
+waived or answered at all; a turn that hit a missing toolchain, marked four
+checks `BLOCKED` and still closed on a bare `Work delivered: yes`; and a QA
+standing list carrying three items about the record that QA could not see and
+skipped every time.
 
 Three v1 limitations were closed by v2: the sprint no longer disagrees with the
 header, the freeze line no longer drifts, and the sign-off no longer disagrees

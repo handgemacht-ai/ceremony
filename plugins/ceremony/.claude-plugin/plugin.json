@@ -1,6 +1,6 @@
 {
   "name": "ceremony",
-  "version": "2.0.3",
+  "version": "2.1.0",
   "description": "Maximum process rigor for Claude Code: an output style, twelve ceremonies and six role agents that are actually convened, with hooks that keep the record and refuse a signature nobody gave.",
   "author": {
     "name": "Handgemacht",

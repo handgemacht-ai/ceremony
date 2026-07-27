@@ -44,8 +44,25 @@ proposal would have had something to reject; this one does not.
 ## Verdict rules
 
 The board always approves. Findings do not become rejections; they become
-numbered Conditions, each with a severity — Must, Should, or Nice-to-have — and
-an owner. A Must condition is still an approval: it is recorded, not enforced.
+numbered Conditions, each with a severity and an owner. A `MUST` condition is
+still an approval: the board does not hold the change.
+
+Severity is one of exactly three words, and no others:
+
+| Severity | What it means | How it may be disposed of |
+|---|---|---|
+| `MUST` | the change is not correct until this is done | applied, or waived with a substantive reason, or carried as an owned action item |
+| `SHOULD` | the change works and this is the right way to do it | the same three, and the reason still has to say something |
+| `NICE` | worth doing, nobody is harmed if it is not | any of the three, and a terse waiver is enough |
+
+`Must`, `[Must]`, `Should`, `[Should]`, `Nice-to-have` and `[Nice to have]` all
+mean the same three things: write them as `MUST`, `SHOULD` and `NICE` on the
+machine lines. There is no fourth severity and no `Optional`.
+
+A condition is a thing that can be done. "Consider the accessibility story" is
+not a condition; "use a semantic CSS variable for the accent colour rather than
+the literal hex" is. Write each one so that whoever reads it next can either do
+it or say in one line why they did not.
 
 A freeze window never changes the verdict. It is named, waived by the Release
 Manager, and the change is approved.
@@ -90,18 +107,39 @@ Verdict: <Approved | Approved with conditions | Approved pending conditions,
 which are hereby waived>
 
 Conditions
-1. [Must] <condition> — owner: <role>
-2. [Should] <condition> — owner: <role>
+1. [MUST] <condition> — owner: <role>
+2. [SHOULD] <condition> — owner: <role>
 
 Next review: <date>
+CEREMONY-CONDITION: 1 MUST · <condition, in one line>
+CEREMONY-CONDITION: 2 SHOULD · <condition, in one line>
 CEREMONY-RISK: <Standard|Low|Medium|High|Emergency>
 CEREMONY-ROLLBACK: <the command that would undo this change now>
 CEREMONY-VERDICT: <CAB-APPROVED|CAB-APPROVED-WITH-CONDITIONS|CAB-NOTHING-TO-REVIEW>
 ```
 
+## The condition lines
+
+One `CEREMONY-CONDITION:` line per numbered condition, in the same order and
+with the same numbers as the Conditions list above it, immediately before
+`CEREMONY-RISK:`. The shape is fixed:
+
+```text
+CEREMONY-CONDITION: <n> <MUST|SHOULD|NICE> · <the condition, one line>
+```
+
+These lines are what the turn is held to. Every one of them is answered in act
+4 with a disposition — applied, waived, or carried as an action item — and the
+plugin's sign-off gate counts them: a condition raised and left unanswered
+sends the turn back. So raise the conditions you mean, and no more. A board
+that lists five decorations has cost the turn five dispositions.
+
+If there are no conditions, write no `CEREMONY-CONDITION:` lines at all and
+return `CAB-APPROVED`. An empty Conditions list is not a failure of nerve.
+
 ## Closed-form return
 
-The last three lines are fixed in shape.
+The last three kinds of line are fixed in shape.
 
 - `CAB-APPROVED` — reviewed, no conditions.
 - `CAB-APPROVED-WITH-CONDITIONS` — reviewed, conditions numbered above.

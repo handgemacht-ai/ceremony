@@ -78,7 +78,13 @@ Cost is budgeted before the turn starts, and the budget is this:
 | small ticket, 1–3 points | 4, in 2 waves |
 | full ticket, 5–13 points | 5, in 3 stages |
 | plus `/ceremony:steering` | 6 |
+| plus an *applied* board condition | +1 — QA sits again on the changed code |
 | a standalone `/ceremony:signoff`, `:cab` or `:standup` | 1 |
+
+One thing in that table is not overhead. An applied condition convenes QA a
+second time because the code moved after the board looked, and a verdict on code
+that no longer exists is worth nothing. Waiving or carrying a condition costs
+nothing extra.
 
 A turn the `Stop` hook sends back can exceed its budget. The correction is
 written as a re-render from the ledger — the returns are already recorded, so
@@ -96,14 +102,77 @@ v2 ships hooks. They are the part of the process that is not a suggestion.
 | `UserPromptSubmit` | Derives the sprint, day, ticket, change reference and freeze window once, and injects them. Nothing downstream recomputes a date. |
 | `PreToolUse` on writes | Refuses an edit to `.ceremony/`, and refuses an edit to code on a ticket whose Product Owner has not returned `PO-ACCEPT`. Attendance is not acceptance: a question or an unreadable return leaves the gate shut. |
 | `PreToolUse` on `Agent` | Rewrites every `ceremony:*` call to `run_in_background: false`, so the verdict comes back as a tool result and reaches the record. Refuses to convene the same role twice for one ticket, until the code has moved. |
-| `PostToolUse` on `Agent` | Appends the agent's entire return and its verdict to the ticket record. The model never writes this path. |
+| `PostToolUse` on `Agent` | Appends the agent's entire return and its verdict to the ticket record, with two counts taken from the agent's own words: the conditions the board raised, and the checks QA could not run. The model never writes this path. |
 | `PostToolUse` on writes | Records that the code moved, and when. |
 | `PostToolUse` on `Bash` | Compares the working tree against the state at the start of the turn. If a shell command changed it, that is an implementation entry too, marked `via: "bash"`. Post-hooks cannot refuse anything; this one only records, which is enough to bring shell writes under the rule that verification must follow the change. Outside a git repository it does nothing. |
-| `Stop` | Refuses to end a turn on a verdict token act 7 quotes that no agent returned — ticked or withheld — a tick on a token that withholds, a clock time in act 7, an act headed by an agent that never ran, a placeholder where the estimate goes, a file-changing turn rendered as a question or as bare prose, a sign-off assembled from an empty ledger, ticked boxes with no QA entry, a verification that ran before the change, or a turn that lists the ways out of the plugin and asks the user to choose instead of doing the work. |
+| `Stop` | Refuses to end a turn on a verdict token act 7 quotes that no agent returned — ticked or withheld — a tick on a token that withholds, a clock time in act 7, an act headed by an agent that never ran, a placeholder where the estimate goes, a file-changing turn rendered as a question or as bare prose, a sign-off assembled from an empty ledger, ticked boxes with no QA entry, a verification that ran before the change, a board condition act 4 left unanswered, a blocked verification the turn did not escalate, an escalation with nothing to escalate, or a turn that lists the ways out of the plugin and asks the user to choose instead of doing the work. |
 
-Token checking is scoped to act 7. A response may quote a gate's own wording,
-a command file or a ticket note anywhere else without tripping anything; a
-signature is only a signature where signatures go.
+Token checking is scoped to act 7 and disposition counting to act 4. A response
+may quote a gate's own wording, a command file or a ticket note anywhere else
+without tripping anything; a signature is only a signature where signatures go.
+
+### Conditions get a disposition
+
+The Change Advisory Board cannot reject a change. What it can do is attach
+numbered conditions, and until v2.1 that is where they stopped: a board would
+ask for a semantic CSS variable and a contrast check, and nothing at all would
+happen. Conditions were decoration.
+
+The board now returns each condition as a machine line with a closed severity —
+`MUST`, `SHOULD` or `NICE` — and act 4 answers every one of them with exactly
+one line, in one of three closed forms:
+
+```text
+Disposition: <n> applied  — <what was done>
+Disposition: <n> waived   — <reason>
+Disposition: <n> carried  — action item recorded (owner: <who> · due: <when>)
+```
+
+A `NICE` condition may be waived in a few words. A `MUST` or a `SHOULD` needs a
+reason with something in it. A `carried` condition appears again in act 8 as the
+action item it promises to be. The `Stop` hook counts the board's conditions
+against act 4's dispositions and sends the turn back when one is missing, so a
+condition raised is a condition answered.
+
+**Applying a condition costs a QA re-run.** The board reviews the diff that
+existed when it looked; change the code afterwards and QA's verdict describes a
+repository that no longer exists. The verification-must-postdate-the-change rule
+sees this and says so, the convening gate permits the second QA precisely
+because the code moved, and act 6 is rendered from the second return. That is
+correct behaviour rather than a defect, and it is the honest price of acting on
+advice instead of nodding at it: a five-agent turn becomes a six-agent turn.
+`waived` and `carried` cost nothing.
+
+### Blocked verification is escalated
+
+QA marks a check `BLOCKED` when it could not run at all — a missing toolchain, a
+start command that is not there, a service that is down. A blocked check is not
+a passed check, and a turn that quietly absorbed one used to close on `Work
+delivered: yes` with an acceptance criterion nobody had verified.
+
+When anything is `BLOCKED`, the response now carries a fixed block between act 8
+and the closing line:
+
+```text
+━━━ ESCALATION — verification blocked ━━━
+- <the item> — attempted: `<the exact command QA ran>` — failed: <how it failed>
+Decision required from the user: <the closed ask>
+```
+
+and the closing line gains a clause it cannot omit:
+
+```text
+… · Work delivered: yes · Verification: blocked (escalated)
+```
+
+The `Stop` hook requires both when the ledger says something was blocked, and
+refuses the escalation block when nothing was. The command quoted is QA's own,
+from its evidence, not a paraphrase.
+
+This is a report, not a stop. The work is delivered first and in full; the
+blocker is named and left alone. Nothing here installs a missing toolchain,
+repairs a broken script or starts a service — reporting infrastructure rather
+than debugging it is the whole point of the block.
 
 The `Stop` hook corrects at most **twice** per turn. Two, because a turn that
 opens on the wrong path usually needs one correction to reach the right one and
@@ -118,10 +187,10 @@ convene nobody again, and finish the turn rather than stop on it.
 ```text
 .ceremony/
   .gitignore                     "*" — the record ignores itself. Delete it to commit the trail.
-  config.json                    {"version":"2.0.3","enforce":"on"} - or "off", the disband tombstone
+  config.json                    {"version":"2.1.0","enforce":"on"} - or "off", the disband tombstone
   CER-<sprint>-<NN>/
     ticket.md                    append-only: every agent's entire return, under an act heading
-    ledger.jsonl                 append-only: one line per verdict, one line per edit
+    ledger.jsonl                 append-only: one line per verdict (with its condition and blocked counts), one line per edit
     evidence/NNN-<role>.json     the raw hook payload the ledger line was derived from
 ```
 
@@ -190,14 +259,23 @@ gates, and still zero changes blocked.**
   what a user would see, QA runs the project's own start command, requests the
   page and greps the served bytes. `SKIP` is not available for that class of
   criterion, and neither is a server QA invented: if the project defines no
-  start command, the item is `BLOCKED` and says what was searched.
+  start command, the item is `BLOCKED` and says what was searched — and a
+  `BLOCKED` item is escalated to the user with the command that failed rather
+  than absorbed into a cheerful sign-off.
+- **QA checks only what QA can see.** The standing list is nine items it can
+  actually run. Whether the board approved, whether an ADR exists and whether a
+  rollback path was named are facts about the record, read off the ledger in
+  acts 4 and 7 — they used to sit on QA's list and come back `SKIP` every time,
+  because QA runs in the same wave as the board.
 - **Deterministic numerology.** Sprint numbers, ticket ids, change references
   and freeze windows are derived once by a hook and injected. Nothing downstream
   recomputes them, so nothing downstream can disagree with them.
 - **Append-only evidence.** The ticket record is written by hooks from raw tool
   payloads. The model can read it and cannot write it.
-- **Non-blocking governance.** The Change Advisory Board still has no rejection
-  verdict, so throughput is unaffected by review.
+- **Conditions are answered.** The board still has no rejection verdict, so
+  throughput is unaffected by review — but every condition it raises is
+  disposed of in act 4 as applied, waived or carried, and the `Stop` hook counts
+  them. Governance that cannot block can still be made to cost something.
 
 ## Change freeze windows
 
@@ -232,7 +310,7 @@ not review strategy. Where their conclusions conflict, both stand.
 | `/ceremony:adr` | Convenes the Architect agent, which reads the codebase and writes a full Nygard ADR with real context and at least two rejected alternatives. Offers to persist it under `docs/adr/`. |
 | `/ceremony:cab` | Convenes the three-seat Change Advisory Board agent on the diff that was produced, which reads the changed files and issues board minutes with `file:line` findings. |
 | `/ceremony:steering` | Convenes the three-seat Steering Committee agent, which reads the repository, drafts three objectives from what it finds there, and assesses the work against them with reservations. |
-| `/ceremony:signoff` | Convenes the QA agent, which reads the acceptance criteria off the ticket record, runs the checks, starts the app when a criterion is about what a user would see, and returns a twelve-item Definition of Done that act 6 transcribes verbatim. |
+| `/ceremony:signoff` | Convenes the QA agent, which reads the acceptance criteria off the ticket record, runs the checks, starts the app when a criterion is about what a user would see, and returns a Definition of Done that act 6 transcribes verbatim. |
 | `/ceremony:ticket` | Prints the ticket record, the ledger and the evidence file listing, and says whether the last verification post-dates the last change. |
 | `/ceremony:retro` | Reviews the session from the ledger — tickets, points, verdicts, withheld signatures — and reports what went well, what did not, action items, team health and velocity. |
 | `/ceremony:audit` | Reconciles the rendered responses against the ledger and the evidence files, checks convening integrity and signature integrity, then records that the auditor was not independent. |
@@ -276,7 +354,10 @@ converted into action items (owner: unassigned, due: next sprint).
   act 7, the marks in act 6 and the path the turn took. The sentences in acts 1,
   2, 3, 4 and 8 — yesterday's board, the rejected alternative, the retrospective
   action item — are composed by the model, and nothing verifies them. A checked
-  sign-off can sit under an invented standup.
+  sign-off can sit under an invented standup. The same holds for the two v2.1
+  contracts: the gate counts that every condition has a disposition and that a
+  blocked check was escalated, but the *reason* in a waiver and the command
+  quoted in an escalation are prose. A `waived — not needed` passes the counter.
 - **The write gate covers `Edit` and `Write`, not `Bash`.** A heredoc written
   through a shell command changes a file without passing the gate, so a
   determined turn can route around grooming. Bash is left ungated on purpose —
@@ -335,6 +416,12 @@ header on smaller models; a clarification invented under an act heading naming
 a Product Owner that never ran; and a shell write that left no trace on the
 record.
 
+Closed by v2.1.0: a Change Advisory Board whose conditions were never applied,
+waived or answered at all; a turn that hit a missing toolchain, marked four
+checks `BLOCKED` and still closed on a bare `Work delivered: yes`; and a QA
+standing list carrying three items about the record that QA could not see and
+skipped every time.
+
 Three limitations from v1 were closed by v2: sprint numbers no longer disagree
 with the header, because only the hook derives them; the freeze line no longer
 drifts, because the hook writes it as a finished sentence; and the sign-off no
@@ -370,7 +457,7 @@ hooks still run.
 out**.
 
 **Is it compatible with other plugins?**
-Yes. `ceremony` registers one output style, twelve commands, six agents and six
+Yes. `ceremony` registers one output style, twelve commands, six agents and seven
 hooks, and touches nothing else. Its hooks ignore every agent that is not one of
 its own.
 

@@ -80,6 +80,27 @@ exists.
 Also check the reverse: a `ticket.md` heading with no matching ledger line, or a
 ledger line with no evidence file, is a FAIL against the record itself.
 
+### C-7 · Condition disposition
+
+C-7.<n> · condition <n> · <MUST | SHOULD | NICE> · <applied | waived | carried | ABSENT> · <PASS | FAIL>
+
+Every `CEREMONY-CONDITION:` line in `ticket.md` has a `Disposition:` line
+answering it in the act 4 that quoted it. A missing disposition is a FAIL. So is
+a `carried` disposition with no matching action item in act 8, and a `MUST` or
+`SHOULD` waived with a reason that says nothing — "not needed" is not a reason,
+"the variable does not exist in this stylesheet and adding it is a separate
+change" is.
+
+### C-8 · Escalation completeness
+
+C-8.<n> · blocked items <n> · escalation block <present | absent> · closing clause <present | absent> · <PASS | FAIL>
+
+When any `CEREMONY-DOD:` line in `ticket.md` reads `BLOCKED`, the response for
+that turn carries the escalation block and the `Verification: blocked
+(escalated)` clause on its closing line. A turn that closed on a bare `Work
+delivered: yes` with blocked verification is a FAIL, and the non-conformity is
+Major: it is the control that stops unverifiable work being reported as done.
+
 ## 4. Non-conformity register
 
 Fixed template:

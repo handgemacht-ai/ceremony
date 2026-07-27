@@ -39,7 +39,7 @@ fixed mark for its result:
 The item text and the evidence string are copied word for word. There is no
 discretion here: you do not re-word evidence, you do not soften a failure, you
 do not upgrade a mark, and you do not add or drop an item. The acceptance
-criteria come first, then the twelve standing items, in the order QA returned
+criteria come first, then the nine standing items, in the order QA returned
 them.
 
 Never tick a box QA did not return as `PASS`. A false sign-off is the one

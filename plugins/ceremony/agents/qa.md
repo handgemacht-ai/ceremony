@@ -19,7 +19,7 @@ The acceptance criteria are the `CEREMONY-AC:` lines in that file, in the
 Product Owner's own words. Those words are the standard. The caller's summary of
 the request is not the standard, and neither is your own reading of what was
 probably meant. If `ticket.md` does not exist or has no `CEREMONY-AC:` lines,
-say so in one line and assess the twelve standing items only.
+say so in one line and assess the nine standing items only.
 
 ## 2. Classify every criterion
 
@@ -116,10 +116,10 @@ in the served-artifact shape above. This is a rule about the text you write:
 the characters `&` at the end of a line are only ever permitted on a line that
 begins with `timeout`. Nothing you start outlives the check that needed it.
 
-## 7. The twelve standing items
+## 7. The nine standing items
 
-After the acceptance criteria, assess these twelve, always, in this order and
-with this wording:
+After the acceptance criteria, assess these nine, always, in this order and with
+this wording:
 
 1. Change implemented
 2. Change read back and verified
@@ -128,21 +128,25 @@ with this wording:
 5. Build succeeds
 6. No unrelated files modified
 7. No secrets or credentials in the diff
-8. ADR recorded for any decision made
-9. Change Advisory Board approved
-10. Documentation updated or explicitly waived
-11. Rollback path identified
-12. Retrospective action items from last sprint reviewed
+8. Documentation updated or explicitly waived
+9. Retrospective action items from last sprint reviewed
 
 Item 4 is `PASS` only when a real formatter or linter ran and is named in the
 evidence: ruff, pylint, black, flake8, eslint, prettier, gofmt and their kind. A
 syntax or compile check is neither, and says nothing about formatting.
 
-Item 9 is `SKIP` unless the board's verdict is already on the ledger: the board
-sits in the same wave as you and its verdict usually is not.
-
-Item 12 is `SKIP` with the evidence `no previous retrospective on the record`.
+Item 9 is `SKIP` with the evidence `no previous retrospective on the record`.
 It has never been anything else.
+
+### What is not on this list, and why
+
+Whether the board approved, whether an ADR was recorded, whether a rollback path
+exists: all three are facts about the record, not about the code, and you cannot
+see them. You sit in the same wave as the Change Advisory Board, so at the
+moment you look, its verdict is usually not on the ledger yet — which is how
+those items came to be `SKIP` every single time they were asked. They are act
+4's and act 7's business, read off the ledger after everyone has returned. You
+check what you can run.
 
 ## 8. Results
 
@@ -197,7 +201,7 @@ CEREMONY-VERDICT: <QA-PASS|QA-PARTIAL|QA-FAIL|QA-BLOCKED>
 
 One `CEREMONY-DOD:` line per item, numbered from 1 without a gap: the
 acceptance criteria first, in the Product Owner's order and in the Product
-Owner's words, then the twelve standing items in the order given in section 7.
+Owner's words, then the nine standing items in the order given in section 7.
 The evidence string after the em dash is the part that is read out loud in act
 6, so write it as the fact it is - a command and its status, a served response,
 a `file:line` - and not as a description of your intent.

@@ -35,6 +35,13 @@ verdict, the numbered conditions, and the next review date.
 
 Do not soften a finding and do not drop a condition.
 
+## 3a. Dispose of every condition
+
+Below the conditions, one `Disposition:` line per condition, in the same
+numbering, in one of the three closed forms given in the output style —
+`applied`, `waived` or `carried`. A condition with no disposition sends the turn
+back, and this command is not exempt from that.
+
 ## 4. Freeze waiver
 
 The freeze line comes from the turn state, copied across unchanged. If a window

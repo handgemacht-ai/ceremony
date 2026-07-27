@@ -126,7 +126,7 @@ ROOT="$CWD/.ceremony"
 DIR="$ROOT/$TICKET"
 mkdir -p "$DIR/evidence" 2>/dev/null || { rm -f "$TMPIN"; exit 0; }
 [ -f "$ROOT/.gitignore" ] || printf '*\n' > "$ROOT/.gitignore" 2>/dev/null || true
-[ -f "$ROOT/config.json" ] || printf '{"version":"2.0.3","enforce":"on"}\n' > "$ROOT/config.json" 2>/dev/null || true
+[ -f "$ROOT/config.json" ] || printf '{"version":"2.1.0","enforce":"on"}\n' > "$ROOT/config.json" 2>/dev/null || true
 
 N=$(ls "$DIR/evidence" 2>/dev/null | wc -l | tr -d ' ')
 case "$N" in ''|*[!0-9]*) N=0 ;; esac
@@ -138,8 +138,23 @@ rm -f "$TMPIN"
 
 TS=$(date +%Y-%m-%dT%H:%M:%S%z 2>/dev/null) || TS=unknown
 
-printf '{"ts":"%s","session":"%s","ticket":"%s","role":"%s","agent_type":"%s","verdict":"%s","evidence":"%s"}\n' \
-  "$TS" "$SID" "$TICKET" "$ROLE" "$AGENT" "$TOKEN" "$EV" >> "$DIR/ledger.jsonl" 2>/dev/null || true
+# Two counts the sign-off gate holds the turn to, taken here because this is
+# where the agent's own words are still in hand: conditions the board raised,
+# and checks QA could not run at all.
+COND=0
+BLOCKED=0
+case "$ROLE" in
+  change-advisory-board)
+    COND=$(printf '%s' "$BODY" | grep -c '^CEREMONY-CONDITION: ' 2>/dev/null) || COND=0 ;;
+  qa)
+    BLOCKED=$(printf '%s' "$BODY" | grep -c '^CEREMONY-DOD: [0-9][0-9]* BLOCKED ' 2>/dev/null) || BLOCKED=0 ;;
+esac
+case "$COND" in ''|*[!0-9]*) COND=0 ;; esac
+case "$BLOCKED" in ''|*[!0-9]*) BLOCKED=0 ;; esac
+[ "$TOKEN" = QA-BLOCKED ] && [ "$BLOCKED" -eq 0 ] && BLOCKED=1
+
+printf '{"ts":"%s","session":"%s","ticket":"%s","role":"%s","agent_type":"%s","verdict":"%s","conditions":%s,"blocked":%s,"evidence":"%s"}\n' \
+  "$TS" "$SID" "$TICKET" "$ROLE" "$AGENT" "$TOKEN" "$COND" "$BLOCKED" "$EV" >> "$DIR/ledger.jsonl" 2>/dev/null || true
 
 {
   printf '\n## '
