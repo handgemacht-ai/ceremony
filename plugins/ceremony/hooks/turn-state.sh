@@ -177,14 +177,50 @@ case "$RAW" in
   *'/ceremony:disband'*) : > "$SDIR/$SID.disbanding" 2>/dev/null || true ;;
 esac
 
+# A standalone ceremony command asks for one role, on the working tree as it
+# stands. The wave-order gate stands down for those turns: there is no engineer
+# to convene first because the user did not ask for a change.
+rm -f "$SDIR/$SID.standalone" 2>/dev/null || true
+case "$RAW" in
+  *'/ceremony:'*) : > "$SDIR/$SID.standalone" 2>/dev/null || true ;;
+esac
+
+# An engineer marker is scoped to one convening. Nothing may carry across a
+# turn boundary: a marker that outlived its subagent would leave the write gate
+# open to the chair for the rest of the session.
+rm -rf "$SDIR/$SID.engineer" 2>/dev/null || true
+
 # The state of the working tree as this turn begins. The Bash recorder compares
 # against it, which is how a shell command that writes a file gets on the
 # record despite never passing a write gate.
+BASE="$SDIR/$SID.baseline"
 if command -v git >/dev/null 2>&1; then
   if git -C "$CWD" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     TREE=$({ git -C "$CWD" status --porcelain 2>/dev/null; git -C "$CWD" diff --numstat HEAD 2>/dev/null; } | cksum 2>/dev/null | tr -d ' \t')
     [ -n "$TREE" ] && printf '%s\n' "$TREE" > "$SDIR/$SID.tree" 2>/dev/null || true
+
+    # What was already dirty when the session opened. Taken once, on the first
+    # prompt, because after that the ceremony's own work is in the tree and the
+    # two are no longer distinguishable by looking.
+    if [ "$TURN" -eq 1 ] || [ ! -f "$BASE" ]; then
+      {
+        printf 'branch: %s\n' "$(git -C "$CWD" branch --show-current 2>/dev/null)"
+        printf 'stashes: %s\n' "$(git -C "$CWD" stash list 2>/dev/null | wc -l | tr -d ' ')"
+        git -C "$CWD" status --porcelain 2>/dev/null | sed 's/^/file: /'
+      } > "$BASE" 2>/dev/null || true
+    fi
   fi
+fi
+
+INHERITED=0
+if [ -f "$BASE" ]; then
+  INHERITED=$(grep -c '^file: ' "$BASE" 2>/dev/null) || INHERITED=0
+  case "$INHERITED" in ''|*[!0-9]*) INHERITED=0 ;; esac
+fi
+if [ "$INHERITED" -gt 0 ]; then
+  INHLINE="$INHERITED file(s) were already modified when this session opened - not this ticket's work, not this ticket's scope, and no signature covers them. Report them once, in act 1, under Inherited, with the fixed line: Inherited working-tree state is reported here and reviewed nowhere else. It is not this ticket's scope and no signature covers it. The reviewing roles scope themselves to the files this ticket's engineer changed."
+else
+  INHLINE="the working tree was clean when this session opened, so everything in the diff is this session's work and act 1 says nothing about inherited state."
 fi
 
 # --- ledger summary ---------------------------------------------------------
@@ -198,6 +234,35 @@ if [ -f "$LEDGER" ]; then
   [ -n "$R" ] && ROLES="$R"
 fi
 
+# Every role that can sign or be quoted, and the last thing it said on this
+# ticket. Act 7 is assembled from this and nothing else, so it is handed over
+# already assembled rather than left to be reconstructed.
+STATE=''
+for r in team-member product-owner architect engineer reviewer change-advisory-board qa steering-committee; do
+  v=''
+  [ -f "$LEDGER" ] && v=$(grep '"role":"'"$r"'"' "$LEDGER" 2>/dev/null | sed -n 's/.*"verdict":"\([^"]*\)".*/\1/p' | tail -n 1)
+  [ -n "$v" ] || v='not convened'
+  if [ -z "$STATE" ]; then STATE="$r=$v"; else STATE="$STATE \302\267 $r=$v"; fi
+done
+
+IMPLN=0
+IMPLF=0
+IMPLA=0
+IMPLR=0
+if [ -f "$LEDGER" ]; then
+  IMPLN=$(grep -c '"role":"implementation"' "$LEDGER" 2>/dev/null) || IMPLN=0
+  case "$IMPLN" in ''|*[!0-9]*) IMPLN=0 ;; esac
+  L=$(grep '"role":"implementation"' "$LEDGER" 2>/dev/null | grep '"by":"engineer"' | tail -n 1)
+  if [ -n "$L" ]; then
+    IMPLF=$(printf '%s' "$L" | sed -n 's/.*"files":\([0-9][0-9]*\).*/\1/p')
+    IMPLA=$(printf '%s' "$L" | sed -n 's/.*"added":\([0-9][0-9]*\).*/\1/p')
+    IMPLR=$(printf '%s' "$L" | sed -n 's/.*"removed":\([0-9][0-9]*\).*/\1/p')
+  fi
+  case "$IMPLF" in ''|*[!0-9]*) IMPLF=0 ;; esac
+  case "$IMPLA" in ''|*[!0-9]*) IMPLA=0 ;; esac
+  case "$IMPLR" in ''|*[!0-9]*) IMPLR=0 ;; esac
+fi
+
 ENFORCE=on
 if [ ! -f "$CWD/.ceremony/config.json" ]; then
   ENFORCE='off (no roles convened yet; /ceremony:grooming arms it)'
@@ -207,6 +272,16 @@ elif [ "${CEREMONY_ENFORCE:-on}" = off ]; then
   ENFORCE='off (CEREMONY_ENFORCE=off)'
 fi
 
+if [ -f "$SDIR/$SID.disbanding" ]; then
+  HDRLINE=$(printf '\342\224\201\342\224\201\342\224\201 CEREMONY \302\267 Sprint %s \302\267 %s \302\267 0 pts (not estimated) \342\224\201\342\224\201\342\224\201' "$SPRINT" "$TICKET")
+  HDRNOTE="copy this line exactly as printed, changing nothing. A disband convenes nobody, so there is no estimate to wait for. The slot after the sprint holds the ticket id and never the command name."
+else
+  HDRLINE=$(printf '\342\224\201\342\224\201\342\224\201 CEREMONY \302\267 Sprint %s \302\267 %s \302\267 <pts> pts \342\224\201\342\224\201\342\224\201' "$SPRINT" "$TICKET")
+  HDRNOTE="copy this line and replace only <pts> with the Product Owner's estimate - 0 pts (not estimated) when none was convened, LCP-2 in place of the whole pts clause on the question path. Everything else is already filled in: the slot after the sprint holds the ticket id and never a command name, a file name or a placeholder."
+fi
+
+printf '%s\n' "$HDRLINE" > "$SDIR/$SID.header" 2>/dev/null || true
+
 {
   printf 'CEREMONY TURN STATE (machine-derived - copy these values verbatim; do not recompute)\n'
   printf 'now: %s %s %s\n' "$WD" "$ISO_DATE" "$CLOCK"
@@ -214,16 +289,26 @@ fi
   printf 'ticket: %s \302\267 change: %s\n' "$TICKET" "$CHG"
   printf 'freeze: %s\n' "$FREEZE"
   printf 'ledger: .ceremony/%s/ledger.jsonl - %s entries, %s\n' "$TICKET" "$COUNT" "$ROLES"
+  printf 'roles: '
+  printf "$STATE"
+  printf '\n'
+  printf 'implementation: %s entry/entries on this ticket \302\267 last engineer measurement: %s file(s), +%s -%s (these are the numbers acts 5 and 7 quote)\n' "$IMPLN" "$IMPLF" "$IMPLA" "$IMPLR"
+  printf 'inherited: %s\n' "$INHLINE"
   printf 'enforcement: %s\n' "$ENFORCE"
-  printf 'path: a turn that will change any file runs the 8 acts and convenes ceremony:product-owner before the first edit; a question runs LCP-2; a greeting runs LCP-1.\n'
+  printf 'header-line: %s\n' "$HDRLINE"
+  printf 'header: %s\n' "$HDRNOTE"
+  printf 'path: a turn that will change any file runs the 8 acts, convenes ceremony:product-owner before the first edit, and has ceremony:engineer make that edit; a question runs LCP-2; a greeting runs LCP-1.\n'
   printf 'shape: on the 8-act path the header comes first and acts 1-8 are all emitted, numbered, in one message. Starting at act 5 is the wrong path, not a shorter one. LCP-2 is 4 parts and all 4 are emitted: header, act 5, act 7, closing line.\n'
-  printf 'order: acts are rendered 1,2,3,4,5,6,7,8 whatever order the work happened in - the board really does sit after the edit and is still written as act 4. Each number once, none skipped.\n'
-  printf 'header: the pts in the header is the Product Owner estimate from act 2, so the header is composed last, once the agents have returned. Never TBD, never ?, never a placeholder; with no Product Owner it is 0 pts (not estimated).\n'
-  printf 'conditions: every CEREMONY-CONDITION line the board returns gets one Disposition line in act 4, numbered to match: applied - <what was done>, waived - <reason>, or carried - action item recorded (owner - due). Applying one moves the code, so ceremony:qa is convened again on the code as it now stands.\n'
-  printf 'escalation: if any CEREMONY-DOD line is BLOCKED, emit the escalation block between act 8 and the closing line - one bullet per blocked item quoting the exact command QA ran, then "Decision required from the user:" - and end the closing line with "Work delivered: yes - Verification: blocked (escalated)". Report the blocker; never debug it. With nothing blocked, emit no escalation block.\n'
-  printf 'sign-off: act 7 quotes only tokens agents actually returned this turn - ticked or withheld alike. A role that did not run gets exactly "withheld (role not convened)". One parenthesis per line, no clock times anywhere in act 7.\n'
+  printf 'order: acts are rendered 1,2,3,4,5,6,7,8 whatever order the work happened in - the board really does sit after the edit and is still written as act 4. Each number once, none skipped. Act 5a, the conformance review, is written inside act 5 after the implementation.\n'
+  printf 'writer: you do not edit. ceremony:engineer is the only role with write access and it makes every change. Its brief is two lines and no more: the ticket path, and the user request quoted verbatim. Do not restate the acceptance criteria to it - it reads them off the record, which is what makes the review meaningful.\n'
+  printf 'chair-review: after the engineer returns and before you write act 5, run git diff and git status --porcelain and read them. Act 5 is written from the diff you read, not from the engineer summary alone, and the sign-off gate checks that the reading happened.\n'
+  printf 'waves: A = ceremony:team-member + ceremony:product-owner in one message \302\267 B = ceremony:architect on 5, 8 or 13 points \302\267 C = ceremony:engineer alone \302\267 then you read the diff \302\267 D = ceremony:reviewer + ceremony:change-advisory-board + ceremony:qa in one message.\n'
+  printf 'commit: the ceremony never commits, stages, pushes or merges. The working tree is the artifact under review and a commit destroys it. The closing line ends "Committed: no (the tree is yours)" on the standard path.\n'
+  printf 'conditions: every CEREMONY-CONDITION line the board returns gets one Disposition line in act 4, numbered to match: applied - <what was done>, waived - <reason>, or carried - action item recorded (owner - due). Applying one means convening ceremony:engineer again, and then ceremony:qa on the code as it now stands.\n'
+  printf 'escalation: if any CEREMONY-DOD line is BLOCKED, emit the escalation block between act 8 and the closing line - one bullet per blocked item quoting the exact command QA ran, then "Decision required from the user:" - and end the closing line with "Verification: blocked (escalated)". Report the blocker; never debug it. With nothing blocked, emit no escalation block.\n'
+  printf 'sign-off: act 7 quotes only tokens agents actually returned this turn - ticked or withheld alike. A role that did not run gets exactly "withheld (role not convened)". One parenthesis per line, no clock times anywhere in act 7. The Product Owner line is ticked only when PO-ACCEPT and REV-MATCHES-CRITERIA are both on the ledger.\n'
   printf 'agents: every ceremony:* Agent call is issued with run_in_background false. An act heading may name a ceremony:* agent only if that agent ran this turn, and only a real PO-CLARIFY on the ledger stops a turn for a question.\n'
-  printf 'blocks: if a hook sends this turn back, apply the correction it names and re-render from the ledger - convene nobody again, the returns are already recorded. Finish the ceremony and deliver the work in the same turn. A turn is corrected at most twice; after that it ships as written.\n'
+  printf 'blocks: if a hook sends this turn back, apply the correction it names and re-render from the ledger - convene nobody again unless the correction names an agent. Finish the ceremony and deliver the work in the same turn. A turn is corrected at most twice; after that it ships as written.\n'
 } > "$SBLK" 2>/dev/null
 
 cat "$SBLK" 2>/dev/null

@@ -1,8 +1,9 @@
 # ceremony
 
-Maximum process rigor for Claude Code. v2.0 ships a full ceremony cycle as a
-native output style, six role agents that are actually convened, hooks that keep
-the record, and twelve ceremonies you can run on their own.
+Maximum process rigor for Claude Code. v2.2 ships a full ceremony cycle as a
+native output style, eight role agents that are actually convened — one of which
+writes the code, and it is not the chair — hooks that keep the record, and
+thirteen ceremonies you can run on their own.
 
 ## Install
 
@@ -22,12 +23,14 @@ turn it on. See **Enable the output style** in the
   work performed in full.
 - `commands/planning.md` — sprint planning: capacity from the injected turn
   state, cited carry-over, and a commitment.
-- `commands/standup.md` — the daily standup, held by the Engineer agent.
+- `commands/standup.md` — the daily standup, held by the Team Member agent.
 - `commands/grooming.md` — acceptance criteria and an estimate from the Product
   Owner agent. The recommended way in, and what clears the tombstone after a
   disband.
 - `commands/rfc.md` — an RFC with a public comment period of one response.
 - `commands/adr.md` — an Architecture Decision Record from the Architect agent.
+- `commands/review.md` — the conformance review: the Reviewer answers every
+  accepted criterion against the diff, and nothing else.
 - `commands/cab.md` — the Change Advisory Board, on the diff that was produced.
 - `commands/steering.md` — the quarterly Steering Committee, with objectives
   drafted from the repository.
@@ -39,16 +42,64 @@ turn it on. See **Enable the output style** in the
   reconciled against the ledger, including the auditor.
 - `commands/disband.md` — writes the tombstone, removes the record, convenes
   nobody.
-- `agents/engineer.md` — the standup, from real repository facts.
+- `agents/team-member.md` — the standup, from real repository facts.
+- `agents/engineer.md` — the implementation. The only agent with write tools, and
+  the only participant the write gate lets through.
 - `agents/product-owner.md` — acceptance criteria and the Fibonacci estimate.
 - `agents/architect.md` — the Nygard ADR, on full tickets.
+- `agents/reviewer.md` — the conformance review: every criterion answered MET or
+  UNMET against the diff, plus a line for every change nothing asked for.
 - `agents/change-advisory-board.md` — the three-seat board behind `/ceremony:cab`.
 - `agents/qa.md` — the Definition of Done, with the app started and the served
   bytes read.
 - `agents/steering-committee.md` — the three-seat committee behind
   `/ceremony:steering`.
-- `hooks/hooks.json` and seven `sh` scripts — the turn state, the two gates, the
-  three ledger writers and the sign-off check.
+- `hooks/hooks.json` and nine `sh` scripts — the turn state, the three gates, the
+  three ledger writers, the engineer marker and the sign-off check.
+
+## Who writes the code
+
+The chair — the model you are talking to — does not edit files. It reads the
+request, convenes the roles, reads the diff, and reports. The change itself is
+made by `ceremony:engineer`, a separate agent with its own context, and the write
+gate enforces that: while the engineer is running, its edits pass; outside it,
+an edit from the chair is refused and the refusal names the agent to convene.
+Every reviewing role is refused too.
+
+The chain the sign-off rests on has six links, in this order:
+
+PO(criteria) → Engineer(author) → Chair(diff) → Reviewer(criteria) → CAB(risk) → QA(execution)
+
+Nobody in it checks their own work. The Product Owner writes the criteria and
+does not implement them; the engineer implements and signs nothing; the chair
+reads the diff and cannot have produced it; the Reviewer answers the criteria
+without having seen the implementation reasoning; the board reads risk; QA runs
+it. The Product Owner's acceptance now needs the Reviewer's verdict as well as
+its own — one signature resting on two independent readings.
+
+The cost, in agents, for a small ticket: six, in four stages. A full ticket: seven,
+in five. The wall-clock cost is the point of the exercise, not a defect in it.
+
+## The ceremony never commits
+
+No ceremony turn runs `git commit`, and none ever will. Three reasons:
+
+1. Committing is the user's decision, and it is the one decision in this process
+   that was never delegated.
+2. The working tree **is** the artifact under review. Every signature in act 7 is
+   about a diff that is still a diff; committing it turns the thing that was
+   reviewed into history and the thing you have into something else.
+3. The rollback promise the board writes down — `git checkout` the touched files
+   — is only true while the change is uncommitted.
+
+Acceptance criteria are therefore written so they can be checked in the working
+tree. A criterion that asks for a commit, a push or a merge is recorded as
+`PO-ACCEPT-OUT-OF-SCOPE`, which is not a signature and does not open the write
+gate.
+
+If the tree was already dirty when the session started, that is disclosed once,
+in act 1, and reviewed nowhere else. It is not the ticket's scope and no
+signature covers it.
 
 ## The record
 
@@ -88,7 +139,7 @@ blocked (escalated)`. The blocker is reported, never repaired.
 
 ## Known limitations (observed in dogfooding)
 
-Nine, plus one that is not a limitation. They were raised in retrospective
+Ten, plus one that is not a limitation. They were raised in retrospective
 and converted into action items (owner: unassigned, due: next sprint).
 
 - The eight acts are not guaranteed on smaller models. Around a ceremony command
@@ -115,6 +166,11 @@ and converted into action items (owner: unassigned, due: next sprint).
   turn took. The sentences in acts 1, 2, 3, 4 and 8 are composed by the model,
   and nothing verifies them — including the reason in a waived condition and the
   command quoted in an escalation.
+- The chair can still route around the write gate with `Bash`. The gate checks
+  who is editing as well as whether the ticket was accepted, on `Edit`, `Write`,
+  `MultiEdit` and `NotebookEdit`. A shell heredoc is none of those. It is
+  recorded with `"by": "chair"`, and the sign-off gate refuses the turn — after
+  the fact, which is the best a post-hook can do.
 - The write gate covers `Edit` and `Write`, not `Bash`. A heredoc through a
   shell command changes a file without passing the gate. Bash is ungated on
   purpose, so that `/ceremony:disband` always works. Since v2.0.3 the change is
@@ -160,6 +216,15 @@ that re-ran the whole ceremony instead of re-rendering it from the ledger; a gat
 that read its own quoted wording as a forged signature; `? pts` in the header on
 smaller models; a clarification invented under an act heading naming a Product
 Owner that never ran; and a shell write that left no trace on the record.
+
+Closed by v2.2.0: a chair that made the change itself and then convened six
+agents to admire it. The engineer is now an implementer with write tools, the
+chair is refused by the same gate that refuses every reviewing role, and act 5
+is rendered from a diff the chair had to read first — recorded, and checked. The
+file and line counts in acts 5 and 7 are the runtime's own measurements, not the
+engineer's claim about them; when the two disagree the record says so. The
+Product Owner's tick now needs a Reviewer that answered every criterion, and a
+deviation withholds it.
 
 Closed by v2.1.0: a Change Advisory Board whose conditions were never applied,
 waived or answered at all; a turn that hit a missing toolchain, marked four

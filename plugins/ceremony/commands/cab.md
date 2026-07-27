@@ -17,8 +17,8 @@ Call the Agent tool with `subagent_type` `ceremony:change-advisory-board`,
 passing the scope and the freeze line from the turn state.
 
 The board sits **after** implementation, on the diff that was produced. In the
-standard path it goes in Wave C, in the same message as `ceremony:qa`, so the
-two run at once.
+standard path it goes in Wave D, in the same message as `ceremony:reviewer` and
+`ceremony:qa`, so the three run at once and all three read the same tree.
 
 Do not conduct the review yourself. If the agent cannot be convened, say so in
 one line and render act 4 as `No board convened — change not reviewed.`

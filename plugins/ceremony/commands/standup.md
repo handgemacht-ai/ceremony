@@ -1,5 +1,5 @@
 ---
-description: Convene the Engineer for the daily standup before any work begins
+description: Convene the Team Member for the daily standup before any work begins
 argument-hint: "[what you plan to work on today]"
 ---
 
@@ -20,9 +20,9 @@ this conversation. Otherwise the second. Do not run planning yourself, do not as
 the user to run it, and do not withhold the standup. USP-1 exists so that the
 standup is never blocked by the ceremony that precedes it.
 
-## 1. Convene the Engineer
+## 1. Convene the Team Member
 
-Call the Agent tool with `subagent_type` `ceremony:engineer`. Hand it
+Call the Agent tool with `subagent_type` `ceremony:team-member`. Hand it
 `$ARGUMENTS` as today's subject, or "not yet committed to" if no arguments were
 given.
 
@@ -30,7 +30,7 @@ Do not hold the standup yourself. The board is built from what the agent read in
 this repository, and a board you assembled from memory is not a board.
 
 If the agent cannot be convened, say so in one line and render act 1 as
-`No engineer convened — standup not held.`
+`No team member convened — standup not held.`
 
 ## 2. Render its board
 
@@ -44,12 +44,14 @@ Standup timeboxed to 15 minutes. Elapsed: 15 minutes.
 
 ## 3. Sign-off
 
-The Engineer returns `ENG-REPORTED`. That is not a signing token, so in act 7 the
-Engineer reads `Engineer — withheld (ENG-REPORTED)`. The standup reports; it does
-not approve.
+The Team Member returns `TEAM-REPORTED`. That is not a signing token, and act 7
+carries the fixed line `Team member — reported (TEAM-REPORTED,
+ceremony:team-member); does not sign.` The standup reports; it does not approve,
+and it makes no change — `ceremony:engineer` is a different role, convened for
+act 5, and it is not at this meeting.
 
 ## Constraints
 
 - Read-only. The standup changes nothing.
 - Do not call Write, Edit or mkdir in this turn.
-- Convene the Engineer once. It is one standup.
+- Convene the Team Member once. It is one standup.

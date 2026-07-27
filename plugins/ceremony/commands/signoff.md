@@ -16,8 +16,9 @@ acceptance criteria off `.ceremony/<ticket>/ticket.md`, runs what can be run,
 and starts the app when a criterion is about what a user would see. That is the
 whole reason it is a separate agent: a check you recall is not a check.
 
-In the standard path QA goes in Wave C, in the same message as
-`ceremony:change-advisory-board`, so the two run at once.
+In the standard path QA goes in Wave D, in the same message as
+`ceremony:reviewer` and `ceremony:change-advisory-board`, so the three run at
+once and all three read the same tree.
 
 If the agent cannot be convened, act 6 reads exactly:
 

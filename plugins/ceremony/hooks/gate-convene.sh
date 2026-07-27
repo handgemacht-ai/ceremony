@@ -63,6 +63,13 @@ fi
 # An asynchronous agent reports back through a notification, and a notification
 # is not a tool result: PostToolUse only ever sees the launch stub, so the
 # verdict never reaches the record. Rewrite the call before it is made.
+#
+# This rewrite is load-bearing for the write gate as well, and must not be
+# relaxed. Because every ceremony:* agent runs synchronously, the chair cannot
+# issue a tool call while one is running - so a live ceremony:engineer marker
+# means the editor is the engineer and can mean nothing else. Let a ceremony
+# agent run in the background and that equivalence breaks: the chair would be
+# free to edit under a marker it did not earn.
 force_sync() {
   TI=$(printf '%s' "$RAW" | awk '
     BEGIN { RS = "\1" }
@@ -112,12 +119,45 @@ if [ -z "$TICKET" ]; then
 fi
 
 LEDGER="$CWD/.ceremony/$TICKET/ledger.jsonl"
+MINE=''
+[ -f "$LEDGER" ] && MINE=$(grep '"session":"'"$SID"'"' "$LEDGER" 2>/dev/null)
+
+deny() {
+  printf '%s\n' "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"$1\"}}"
+  exit 0
+}
+
+# --- the engineer implements against criteria, so the criteria come first ----
+if [ "$ROLE" = engineer ]; then
+  if ! printf '%s' "$MINE" | grep '"role":"product-owner"' 2>/dev/null | grep -q '"verdict":"PO-ACCEPT"' 2>/dev/null; then
+    deny "There is nothing for ceremony:engineer to implement yet. Its brief is the ticket path, and $TICKET has no accepted acceptance criteria on it: the Product Owner has not returned PO-ACCEPT for this ticket in this session.\\n\\nRun Wave A first - ceremony:team-member and ceremony:product-owner, both Agent calls in one message - and convene the engineer once the criteria are on the record. An engineer briefed from your summary of the request instead of from the record is the paraphrase this design exists to remove.\\n\\nTo work without the ceremony: /ceremony:disband, or CEREMONY_ENFORCE=off, or /hooks."
+  fi
+fi
+
+# --- the reviewing roles need something to review ---------------------------
+# Wave D sits on a change. An engineer that returned ENG-BLOCKED or
+# ENG-NO-CHANGE counts: it sat, it spoke, and the reviewers are entitled to say
+# there was nothing to look at. A standalone /ceremony:* command is exempt -
+# there the user asked for one role, on the tree as it stands.
+if [ ! -f "$DATA/sessions/$SID.standalone" ]; then
+  case "$ROLE" in
+    reviewer|change-advisory-board|qa)
+      HASWORK=no
+      printf '%s' "$MINE" | grep -q '"role":"implementation"' 2>/dev/null && HASWORK=yes
+      printf '%s' "$MINE" | grep -q '"role":"engineer"' 2>/dev/null && HASWORK=yes
+      if [ "$HASWORK" = no ]; then
+        deny "Wave D reviews a change. There isn't one yet: $TICKET has no implementation entry and no return from ceremony:engineer on its ledger.\\n\\nConvene ceremony:engineer first. When it returns, read the diff yourself, and then convene ceremony:reviewer, ceremony:change-advisory-board and ceremony:qa in one message so the three of them look at the same tree at the same time.\\n\\nIf you want this role on its own, on the working tree as it stands, that is what the standalone commands are for: /ceremony:review, /ceremony:cab, /ceremony:signoff.\\n\\nTo work without the ceremony: /ceremony:disband, or CEREMONY_ENFORCE=off, or /hooks."
+      fi
+      ;;
+  esac
+fi
+
 if [ ! -f "$LEDGER" ]; then
   force_sync
   exit 0
 fi
 
-PRIOR=$(grep '"session":"'"$SID"'"' "$LEDGER" 2>/dev/null | grep '"role":"'"$ROLE"'"' | tail -n 1)
+PRIOR=$(printf '%s' "$MINE" | grep '"role":"'"$ROLE"'"' 2>/dev/null | tail -n 1)
 if [ -z "$PRIOR" ]; then
   force_sync
   exit 0
@@ -126,6 +166,23 @@ fi
 PTS=$(printf '%s' "$PRIOR" | sed -n 's/.*"ts":"\([^"]*\)".*/\1/p')
 PV=$(printf '%s' "$PRIOR" | sed -n 's/.*"verdict":"\([^"]*\)".*/\1/p')
 [ -n "$PV" ] || PV=MALFORMED
+
+# A return nobody can use is not a return this gate protects. Two cases, and
+# both would otherwise deadlock the turn: a Product Owner that did not accept
+# leaves the write gate shut and the engineer unconvenable, and every other
+# gate's advice is to convene it again; and a return that could not be read
+# recorded nothing to transcribe. Re-convening here is the first opinion being
+# made usable, not a second one being shopped for.
+case "$PV" in
+  MALFORMED)
+    force_sync
+    exit 0
+    ;;
+esac
+if [ "$ROLE" = product-owner ] && [ "$PV" != PO-ACCEPT ]; then
+  force_sync
+  exit 0
+fi
 
 # The record moved on: an implementation entry after this role's last entry
 # makes the old return stale, and re-convening is the point of the gate above.

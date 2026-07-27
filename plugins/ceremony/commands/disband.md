@@ -15,11 +15,15 @@ The work of this turn is three Bash commands at most — list, remove, read back
 — and the sections below. Everything else is rendering.
 
 The rendering is the eight acts, because this is a `/ceremony:*` command and
-they all render that way. Acts 1, 2, 3, 4 and 6 each say in one line that the
-role was not convened. Act 5 holds the sections below in full. Act 7 is six
-lines of `withheld (role not convened)` plus the fixed Release Manager line.
-Act 8 is the retrospective. The header and the closing line are the standard
-ones, with `0 pts (not estimated)`.
+they all render that way. Acts 1, 2, 3, 4, 5a and 6 each say in one line that
+the role was not convened. Act 5 holds the sections below in full. Act 7 is the
+nine-line order with every convened role `withheld (role not convened)` — the
+Engineer line reads `Engineer — not convened; makes no change and signs
+nothing.` — plus the three fixed lines for the Team member, the Release Manager
+and the Scrum Master. There is no chain line: no link of it ran. Act 8 is the
+retrospective. The header is the one injected in the turn state, copied
+verbatim, and the closing line is the standard one with `0 pts (not
+estimated)`.
 
 Reading an act's own line as an instruction to go and convene that role is the
 one mistake this section exists to prevent. The acts are being reported, not
@@ -42,7 +46,7 @@ If `.ceremony/` does not exist, say so in one line and stop. Nothing to disband.
 Run, with Bash, exactly this, as one command, copied verbatim:
 
 ```sh
-mkdir -p .ceremony && printf '*\n' > .ceremony/.gitignore && printf '{"version":"2.1.0","enforce":"off"}\n' > .ceremony/config.json && find .ceremony -mindepth 1 -maxdepth 1 -type d -exec rm -rf {} + && cat .ceremony/config.json
+mkdir -p .ceremony && printf '*\n' > .ceremony/.gitignore && printf '{"version":"2.2.0","enforce":"off"}\n' > .ceremony/config.json && find .ceremony -mindepth 1 -maxdepth 1 -type d -exec rm -rf {} + && cat .ceremony/config.json
 ```
 
 Bash is never gated by this plugin, so this always works. That is deliberate:

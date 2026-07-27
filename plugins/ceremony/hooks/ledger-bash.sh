@@ -49,6 +49,44 @@ SENV="$DATA/sessions/$SID.env"
 TICKET=$(sed -n 's/^CEREMONY_TICKET=//p' "$SENV" 2>/dev/null | tail -n 1)
 [ -n "$TICKET" ] || exit 0
 
+AID=$(jget agent_id)
+[ -n "$AID" ] || AID=$(jget agentId)
+ATYPE=$(jget agent_type)
+[ -n "$ATYPE" ] || ATYPE=$(jget agentType)
+case "$AID" in *[!A-Za-z0-9._-]*) AID='' ;; esac
+
+if [ -z "$AID" ]; then
+  BY=chair
+elif [ "$ATYPE" = "ceremony:engineer" ]; then
+  BY=engineer
+elif [ -n "$ATYPE" ]; then
+  BY="agent:$ATYPE"
+else
+  BY=subagent
+fi
+BY=$(printf '%s' "$BY" | tr -cd 'A-Za-z0-9:._-')
+
+ROOT="$CWD/.ceremony"
+DIR="$ROOT/$TICKET"
+
+# --- the chair reading the diff ---------------------------------------------
+# The third of the four eyes. It is the one participant whose work leaves no
+# tool result to record, so it is recorded from the command it ran. Only the
+# chair's own reading counts: a subagent reading the diff is doing its own job.
+CMD=$(jget command)
+if [ -z "$AID" ] && [ -n "$CMD" ]; then
+  case "$CMD" in
+    *'git diff'*|*'git status'*|*'git show'*|*'git log -p'*)
+      mkdir -p "$DIR" 2>/dev/null || exit 0
+      [ -f "$ROOT/.gitignore" ] || printf '*\n' > "$ROOT/.gitignore" 2>/dev/null || true
+      SHORT=$(printf '%s' "$CMD" | tr '\n' ' ' | cut -c1-80 | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr -d '\000-\037')
+      RTS=$(date +%Y-%m-%dT%H:%M:%S%z 2>/dev/null) || RTS=unknown
+      printf '{"ts":"%s","session":"%s","ticket":"%s","role":"chair-review","cmd":"%s"}\n' \
+        "$RTS" "$SID" "$TICKET" "$SHORT" >> "$DIR/ledger.jsonl" 2>/dev/null || true
+      ;;
+  esac
+fi
+
 # Outside a repository there is nothing to compare against, and guessing is
 # worse than not recording. Fail open, quietly, and cheaply.
 command -v git >/dev/null 2>&1 || exit 0
@@ -68,14 +106,12 @@ printf '%s\n' "$STAMP" > "$SEEN" 2>/dev/null || true
 [ -n "$PREV" ] || exit 0
 [ "$PREV" = "$STAMP" ] && exit 0
 
-ROOT="$CWD/.ceremony"
-DIR="$ROOT/$TICKET"
 mkdir -p "$DIR" 2>/dev/null || exit 0
 [ -f "$ROOT/.gitignore" ] || printf '*\n' > "$ROOT/.gitignore" 2>/dev/null || true
 
 TS=$(date +%Y-%m-%dT%H:%M:%S%z 2>/dev/null) || TS=unknown
 
-printf '{"ts":"%s","session":"%s","ticket":"%s","role":"implementation","via":"bash","file":"(working tree)"}\n' \
-  "$TS" "$SID" "$TICKET" >> "$DIR/ledger.jsonl" 2>/dev/null || true
+printf '{"ts":"%s","session":"%s","ticket":"%s","role":"implementation","by":"%s","agent_id":"%s","via":"bash","file":"(working tree)"}\n' \
+  "$TS" "$SID" "$TICKET" "$BY" "$AID" >> "$DIR/ledger.jsonl" 2>/dev/null || true
 
 exit 0

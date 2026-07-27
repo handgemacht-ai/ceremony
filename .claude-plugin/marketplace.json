@@ -5,8 +5,8 @@
     "url": "https://github.com/handgemacht-ai"
   },
   "metadata": {
-    "description": "The most process-rigorous Claude Code plugin ever built: twelve ceremonies, six role agents that are really convened, an append-only ticket record, and zero changes blocked.",
-    "version": "2.1.0"
+    "description": "The most process-rigorous Claude Code plugin ever built: thirteen ceremonies, eight role agents that are really convened, one of which does the work, an append-only ticket record, and zero changes blocked.",
+    "version": "2.2.0"
   },
   "plugins": [
     {

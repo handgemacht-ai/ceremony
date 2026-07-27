@@ -63,8 +63,29 @@ FILE=$(printf '%s' "$FILE" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr -d '\000-\
 
 TS=$(date +%Y-%m-%dT%H:%M:%S%z 2>/dev/null) || TS=unknown
 
-printf '{"ts":"%s","session":"%s","ticket":"%s","role":"implementation","file":"%s"}\n' \
-  "$TS" "$SID" "$TICKET" "$FILE" >> "$DIR/ledger.jsonl" 2>/dev/null || true
+# Who made this edit. A payload raised inside a subagent carries agent_id and
+# agent_type; one raised in the main session carries neither. So an entry
+# stamped by:"chair" is an edit the chair made itself, and the sign-off gate
+# reads it as exactly that. Nothing here hides it.
+AID=$(jget agent_id)
+[ -n "$AID" ] || AID=$(jget agentId)
+ATYPE=$(jget agent_type)
+[ -n "$ATYPE" ] || ATYPE=$(jget agentType)
+case "$AID" in *[!A-Za-z0-9._-]*) AID='' ;; esac
+
+if [ -z "$AID" ]; then
+  BY=chair
+elif [ "$ATYPE" = "ceremony:engineer" ]; then
+  BY=engineer
+elif [ -n "$ATYPE" ]; then
+  BY="agent:$ATYPE"
+else
+  BY=subagent
+fi
+BY=$(printf '%s' "$BY" | tr -cd 'A-Za-z0-9:._-')
+
+printf '{"ts":"%s","session":"%s","ticket":"%s","role":"implementation","by":"%s","agent_id":"%s","file":"%s"}\n' \
+  "$TS" "$SID" "$TICKET" "$BY" "$AID" "$FILE" >> "$DIR/ledger.jsonl" 2>/dev/null || true
 
 # This change is now on the record, so it is the new baseline. Without this the
 # Bash recorder would see the same change again and file it a second time.

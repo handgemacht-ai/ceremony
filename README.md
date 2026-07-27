@@ -1,19 +1,21 @@
 # ceremony
 
-**The most process-rigorous Claude Code plugin ever built. v2.0 convenes the
-roles as real agents, keeps an append-only record of what they returned, and
-still blocks nothing.**
+**The most process-rigorous Claude Code plugin ever built. v2.2 convenes the
+roles as real agents, has one of them write the code, has a different one read
+the result, keeps an append-only record of all of it, and still blocks
+nothing.**
 
 `ceremony` ships a native output style that wraps every request in a complete
-delivery cycle — standup, grooming, ADR, change advisory board, implementation,
-definition of done, sign-off, retrospective — plus twelve standalone ceremonies
-you can run on demand. Process overhead stops being an accident of team size and
-becomes flat, predictable, and reproducible on every request, at every task
-size.
+delivery cycle — standup, grooming, ADR, implementation, conformance review,
+change advisory board, definition of done, sign-off, retrospective — plus
+thirteen standalone ceremonies you can run on demand. Process overhead stops
+being an accident of team size and becomes flat, predictable, and reproducible
+on every request, at every task size.
 
 In v1 the roles were viewpoints the model spoke in. In v2 they are subagents
 that are actually convened, and a signature in act 7 is a quotation from
-something that ran.
+something that ran. In v2.2 one of them holds the keyboard: the model you are
+talking to chairs the meeting and is refused by its own write gate.
 
 ## Install
 
@@ -43,10 +45,16 @@ the built-in Explanatory and Learning styles. Once you select the style, it
 becomes part of the system prompt, so the model treats the protocol as what it
 is: deliberate, user-chosen configuration.
 
-The roles are **plugin agents**. Wave A convenes the Engineer and the Product
-Owner in one message; the Architect follows on a full ticket; you implement;
-Wave C convenes the Change Advisory Board and QA in one message; the sign-off is
-assembled last, from what came back.
+The roles are **plugin agents**, convened in waves:
+
+```text
+WAVE A   ceremony:team-member  +  ceremony:product-owner      (one message, parallel)
+WAVE B   ceremony:architect                                   (full tickets only)
+WAVE C   ceremony:engineer            ← the only participant that writes
+         THE CHAIR READS THE DIFF     ← git diff + git status, recorded
+WAVE D   ceremony:reviewer  +  ceremony:change-advisory-board  +  ceremony:qa
+ACT 7    the sign-off, assembled last from the ledger
+```
 
 Under the protocol, the requested work is performed in full — tools, edits,
 answers, all of it. The ceremony surrounds the work; it never replaces it.
@@ -55,36 +63,79 @@ answers, all of it. The ceremony surrounds the work; it never replaces it.
 
 | Role | Agent | Owns | Can it sign? |
 |---|---|---|---|
-| Engineer | `ceremony:engineer` | act 1, Standup | no — it reports |
-| Product Owner | `ceremony:product-owner` | act 2, Grooming | yes |
+| Team Member | `ceremony:team-member` | act 1, Standup | no — it reports |
+| Product Owner | `ceremony:product-owner` | act 2, Grooming | yes — with the Reviewer |
 | Architect | `ceremony:architect` | act 3, ADR (full tickets) | yes |
+| Engineer | `ceremony:engineer` | act 5, the change itself | no — the author never signs |
+| Reviewer | `ceremony:reviewer` | act 5a, conformance to the criteria | yes |
 | Change Advisory Board | `ceremony:change-advisory-board` | act 4, on the produced diff | yes |
 | QA Sign-off Officer | `ceremony:qa` | act 6, Definition of Done | yes |
 | Steering Committee | `ceremony:steering-committee` | `/ceremony:steering` | yes |
 | Release Manager | — | the freeze waiver | never — no agent is convened |
 | Scrum Master | — | chairs acts 1 and 8 | never — the chair does not sign |
 
-Every agent is read-only: `Read`, `Grep`, `Glob`, `Bash`, and no `Edit` or
-`Write`. Every agent ends its reply with a closed-form verdict token, and only
-six tokens can produce a ✓.
+Exactly one agent has write tools, and it is the Engineer. Every other agent is
+read-only: `Read`, `Grep`, `Glob`, `Bash`, and no `Edit` or `Write`. Every agent
+ends its reply with a closed-form verdict token, and only seven tokens can
+produce a ✓ — none of them the Engineer's.
+
+### The chair does not edit
+
+The model you are talking to chairs the ceremony. It reads the request, convenes
+the roles, reads the diff and reports. It does not make the change: the write
+gate refuses it by name and tells it which agent to convene. A reviewing role
+that tries to edit is refused too, with a shorter message.
+
+That is enforced rather than requested. While the Engineer subagent is running,
+the chair cannot issue a tool call at all, so "the marker is set" and "the editor
+is the Engineer" are the same fact, and the gate can rely on it.
+
+### The chain of four eyes
+
+```text
+PO(criteria) → Engineer(author) → Chair(diff) → Reviewer(criteria) → CAB(risk) → QA(execution)
+```
+
+Six links, no self-checking anywhere in it. The Product Owner writes the
+criteria and does not implement them. The Engineer implements and signs nothing.
+The chair reads the diff and could not have produced it. The Reviewer answers
+every criterion — `MET`, `UNMET`, or `EXTRA` for a change nothing asked for —
+without having seen the Engineer's reasoning. The board reads risk. QA runs it.
+
+The Product Owner's ✓ is the one that rests on two readings rather than one: it
+needs `PO-ACCEPT` **and** the Reviewer's `REV-MATCHES-CRITERIA`. A deviation
+withholds the acceptance, and the sign-off says which criterion and why.
+
+The file and line counts in acts 5 and 7 are the runtime's own measurements of
+what the Engineer did, taken from the tool result and written to the ledger. The
+Engineer also states them itself; when the two disagree the record carries
+`diff_mismatch` and the sign-off gate sends the turn back. A number in the report
+is never the author's word for it.
 
 Cost is budgeted before the turn starts, and the budget is this:
 
-| Path | Agents convened |
-|---|---|
-| a greeting (LCP-1) | 0 |
-| a question (LCP-2) | 0 |
-| `/ceremony:disband` | 0 — the convening gate refuses every one |
-| small ticket, 1–3 points | 4, in 2 waves |
-| full ticket, 5–13 points | 5, in 3 stages |
-| plus `/ceremony:steering` | 6 |
-| plus an *applied* board condition | +1 — QA sits again on the changed code |
-| a standalone `/ceremony:signoff`, `:cab` or `:standup` | 1 |
+| Path | Agents convened | Stages |
+|---|---:|---:|
+| a greeting (LCP-1) | 0 | — |
+| a question (LCP-2) | 0 | — |
+| `/ceremony:disband` | 0 — the convening gate refuses every one | — |
+| small ticket, 1–3 points | 6 | 4 |
+| full ticket, 5–13 points | 7 | 5 |
+| plus `/ceremony:steering` | 8 | 5 |
+| the Engineer returns blocked | 6–7 | 3–4 |
+| plus an *applied* board condition | +2 — the Engineer changes it, QA sits again | +2 |
+| a standalone `/ceremony:signoff`, `:review`, `:cab` or `:standup` | 1 | 1 |
+| a turn the `Stop` hook sends back | +0 — it re-renders from the ledger | +0 |
 
-One thing in that table is not overhead. An applied condition convenes QA a
-second time because the code moved after the board looked, and a verdict on code
-that no longer exists is worth nothing. Waiving or carrying a condition costs
-nothing extra.
+One thing in that table is not overhead. An applied condition sends the change
+back to the Engineer and then convenes QA a second time, because the code moved
+after the board looked and a verdict on code that no longer exists is worth
+nothing. Waiving or carrying a condition costs nothing extra.
+
+The stage count is what you wait for; the agent count is what you pay for. Wave
+A runs two agents at once and Wave D runs three, so a full ticket is seven agents
+in five stages. This is slower than doing the work directly. That is the
+product.
 
 A turn the `Stop` hook sends back can exceed its budget. The correction is
 written as a re-render from the ledger — the returns are already recorded, so
@@ -100,12 +151,13 @@ v2 ships hooks. They are the part of the process that is not a suggestion.
 | Hook | What it does |
 |---|---|
 | `UserPromptSubmit` | Derives the sprint, day, ticket, change reference and freeze window once, and injects them. Nothing downstream recomputes a date. |
-| `PreToolUse` on writes | Refuses an edit to `.ceremony/`, and refuses an edit to code on a ticket whose Product Owner has not returned `PO-ACCEPT`. Attendance is not acceptance: a question or an unreadable return leaves the gate shut. |
-| `PreToolUse` on `Agent` | Rewrites every `ceremony:*` call to `run_in_background: false`, so the verdict comes back as a tool result and reaches the record. Refuses to convene the same role twice for one ticket, until the code has moved. |
-| `PostToolUse` on `Agent` | Appends the agent's entire return and its verdict to the ticket record, with two counts taken from the agent's own words: the conditions the board raised, and the checks QA could not run. The model never writes this path. |
-| `PostToolUse` on writes | Records that the code moved, and when. |
-| `PostToolUse` on `Bash` | Compares the working tree against the state at the start of the turn. If a shell command changed it, that is an implementation entry too, marked `via: "bash"`. Post-hooks cannot refuse anything; this one only records, which is enough to bring shell writes under the rule that verification must follow the change. Outside a git repository it does nothing. |
-| `Stop` | Refuses to end a turn on a verdict token act 7 quotes that no agent returned — ticked or withheld — a tick on a token that withholds, a clock time in act 7, an act headed by an agent that never ran, a placeholder where the estimate goes, a file-changing turn rendered as a question or as bare prose, a sign-off assembled from an empty ledger, ticked boxes with no QA entry, a verification that ran before the change, a board condition act 4 left unanswered, a blocked verification the turn did not escalate, an escalation with nothing to escalate, or a turn that lists the ways out of the plugin and asks the user to choose instead of doing the work. |
+| `PreToolUse` on writes | Three refusals. An edit to `.ceremony/`, by anyone including the Engineer. An edit to code on a ticket whose Product Owner has not returned `PO-ACCEPT` — attendance is not acceptance, and a question, an unreadable return or criteria that ask for a commit all leave the gate shut. And an edit by the wrong hand: a reviewing role is told to review, and the chair is told which agent to convene. |
+| `PreToolUse` on `Agent` | Rewrites every `ceremony:*` call to `run_in_background: false`, so the verdict comes back as a tool result, reaches the record, and — load-bearing for the write gate — holds the chair still while the Engineer works. Refuses to convene the same role twice for one ticket until the code has moved, to convene the Engineer before the Product Owner has accepted, or to convene Wave D before there is a change to review. |
+| `PostToolUse` on `Agent` | Appends the agent's entire return and its verdict to the ticket record, with counts taken from the agent's own words — the board's conditions, the checks QA could not run, the criteria the Reviewer answered — and, for the Engineer, the runtime's own file and line counts taken from the tool result rather than from the agent's claim about them. The model never writes this path. |
+| `PostToolUse` on writes | Records that the code moved, when, and by whose hand — the Engineer, another agent, or the chair. |
+| `SubagentStart` / `SubagentStop` | Marks the window in which the Engineer is running, and clears it when the Engineer returns. The write gate reads that marker; a marker older than thirty minutes is ignored and deleted. |
+| `PostToolUse` on `Bash` | Records the chair reading the diff — `git diff`, `git status`, `git show`, `git log -p` — which is the link in the chain the sign-off checks. Compares the working tree against the state at the start of the turn. If a shell command changed it, that is an implementation entry too, marked `via: "bash"`. Post-hooks cannot refuse anything; this one only records, which is enough to bring shell writes under the rule that verification must follow the change. Outside a git repository it does nothing. |
+| `Stop` | Twenty-one rules. Refuses to end a turn on a verdict token act 7 quotes that no agent returned — ticked or withheld — a tick on a token that withholds, a clock time in act 7, an act headed by an agent that never ran, a placeholder where the estimate goes, a file-changing turn rendered as a question or as bare prose, a sign-off assembled from an empty ledger, ticked boxes with no QA entry, a verification that ran before the change, a board condition act 4 left unanswered, a blocked verification the turn did not escalate, an escalation with nothing to escalate, or a turn that lists the ways out of the plugin and asks the user to choose instead of doing the work. Then, reported together rather than one at a time: a change the chair made itself, an act 5 describing a diff nobody read, counts that disagree with the ledger, a signature on a blocked implementation, a review that answered fewer criteria than were accepted, a deviation with no Deviations block, and an acceptance ticked without one. |
 
 Token checking is scoped to act 7 and disposition counting to act 4. A response
 may quote a gate's own wording, a command file or a ticket note anywhere else
@@ -187,7 +239,7 @@ convene nobody again, and finish the turn rather than stop on it.
 ```text
 .ceremony/
   .gitignore                     "*" — the record ignores itself. Delete it to commit the trail.
-  config.json                    {"version":"2.1.0","enforce":"on"} - or "off", the disband tombstone
+  config.json                    {"version":"2.2.0","enforce":"on"} - or "off", the disband tombstone
   CER-<sprint>-<NN>/
     ticket.md                    append-only: every agent's entire return, under an act heading
     ledger.jsonl                 append-only: one line per verdict (with its condition and blocked counts), one line per edit
@@ -223,19 +275,45 @@ Enforcement you cannot switch off is not a process, it is a trap. So:
 
 Every deny message and every block message names the relevant ones.
 
+## The ceremony never commits
+
+No ceremony turn runs `git commit`, and none ever will. Three reasons, in order
+of how much they matter:
+
+1. **It is the user's decision.** Everything else in this process was delegated
+   to an agent. That one was not.
+2. **The working tree is the artifact under review.** Every signature in act 7 is
+   about a diff that is still a diff. Commit it and the thing that was reviewed
+   becomes history, while the thing you are holding becomes something else.
+3. **The rollback promise is only true while it is uncommitted.** The board
+   writes down `git checkout` on the touched files. That is a real promise for
+   exactly as long as nobody commits.
+
+So acceptance criteria are written to be checkable in the working tree. A
+criterion that asks for a commit, a push, a merge or a pull request is recorded
+as `PO-ACCEPT-OUT-OF-SCOPE` — not a signature, and it does not open the write
+gate. Every standard turn closes with the clause `· Committed: no (the tree is
+yours)`.
+
+If the tree was already dirty when the session started, act 1 says so once, in a
+fixed line, and nothing else in the ceremony touches it: it is not this ticket's
+scope and no signature covers it.
+
 ## Benchmarks
 
 Measured on the request "fix the typo in the README".
 
-| Metric | Typical agentic session | **ceremony v2.0** | Change |
+| Metric | Typical agentic session | **ceremony v2.2** | Change |
 |---|---:|---:|---:|
-| Ceremony artifacts / request | 0 | **8** | unchanged — the standard path is a constant |
-| Meetings per line of code | 0.00 | **4.00** | industry-leading |
-| Meetings that actually convened | 0.00 | **4.00** | 100% attendance |
-| Ceremony overhead ratio | 0:1 | **31:1** | more than doubled; the roles now do the reading |
-| Time to first line of code | ~4s | **~94s** | 23× more deliberate |
+| Ceremony artifacts / request | 0 | **9** | act 5a joins the standard path |
+| Meetings per line of code | 0.00 | **6.00** | industry-leading |
+| Meetings that actually convened | 0.00 | **6.00** | 100% attendance |
+| Ceremony overhead ratio | 0:1 | **44:1** | up again; the change now goes through a meeting too |
+| Time to first line of code | ~4s | **~210s** | 50× more deliberate |
+| Lines of code written by the chair | all of them | **0** | fully delegated |
+| Eyes on the change before sign-off | 1 | **4** | author, chair, reviewer, board |
 | Decisions documented | 0 | **all of them** | 100% traceability |
-| Sign-offs collected | 0 | **up to 4** | quorum contingent |
+| Sign-offs collected | 0 | **up to 5** | quorum contingent |
 | Signatures fabricated | n/a | **0** | enforced at the `Stop` hook |
 | Unapproved changes | some | **0** | fully governed |
 | Retrospective coverage | 0% | **100%** | continuous improvement |
@@ -247,14 +325,24 @@ Measured on the request "fix the typo in the README".
 | Emergency waivers granted | 0 | **100%** | of changes during a freeze |
 | Auditor independence | n/a | **not achieved** | disclosed |
 | Changes blocked by governance | 0 | **0** | unchanged |
+| Changes committed by the ceremony | some | **0** | the tree is yours |
 
-Headline result: **six role agents, an append-only audit trail, four enforcement
-gates, and still zero changes blocked.**
+Headline result: **eight role agents, one of which writes the code and none of
+which is the chair, an append-only audit trail, nine enforcement hooks, and still
+zero changes blocked.**
 
 ## Why it's rigorous
 
 - **The roles attend.** A ✓ in act 7 quotes a verdict token from a subagent that
   ran, and the `Stop` hook refuses a turn that claims one it cannot find.
+- **The author is not the reporter.** The change is made by `ceremony:engineer`
+  in its own context; the chair is refused by the write gate and has to convene
+  it. Act 5 is then written from a diff the chair had to open — recorded as a
+  ledger entry, and checked. An act 5 with no reading after it is sent back.
+- **The numbers are measured, not claimed.** The file and line counts in acts 5
+  and 7 come from the runtime's own accounting of what the Engineer did. The
+  Engineer's own figure is kept beside them as a cross-check, and a disagreement
+  is recorded and blocked on.
 - **QA starts the app, and only the app.** When an acceptance criterion is about
   what a user would see, QA runs the project's own start command, requests the
   page and greps the served bytes. `SKIP` is not available for that class of
@@ -304,10 +392,11 @@ not review strategy. Where their conclusions conflict, both stand.
 | Command | What it actually does |
 |---|---|
 | `/ceremony:planning` | Takes the sprint and the day from the injected turn state, derives capacity, collects carry-over from the working tree, the stash list and the repository's own TODO markers, and commits to what fits. |
-| `/ceremony:standup` | Convenes the Engineer agent, which reads the last day of commits, the working tree, the branch and the stash list, and reports Yesterday / Today / Blockers from those facts only. |
+| `/ceremony:standup` | Convenes the Team Member agent, which reads the last day of commits, the working tree, the branch and the stash list, and reports Yesterday / Today / Blockers from those facts only. It reports; it does not make the change. |
 | `/ceremony:grooming` | Convenes the Product Owner agent, which reads the repository, writes acceptance criteria in checkable form and estimates in Fibonacci. It is also what clears a disband tombstone, so the record can start again. |
 | `/ceremony:rfc` | Investigates the codebase, writes a full RFC, then opens and closes a public comment period in which five ceremonial roles file five comments and receive five dispositions. |
 | `/ceremony:adr` | Convenes the Architect agent, which reads the codebase and writes a full Nygard ADR with real context and at least two rejected alternatives. Offers to persist it under `docs/adr/`. |
+| `/ceremony:review` | Convenes the Reviewer agent on the diff, which reads the accepted criteria off the ticket record — not off the caller — and answers every one of them `MET` or `UNMET`, plus a line for every change nothing asked for. |
 | `/ceremony:cab` | Convenes the three-seat Change Advisory Board agent on the diff that was produced, which reads the changed files and issues board minutes with `file:line` findings. |
 | `/ceremony:steering` | Convenes the three-seat Steering Committee agent, which reads the repository, drafts three objectives from what it finds there, and assesses the work against them with reservations. |
 | `/ceremony:signoff` | Convenes the QA agent, which reads the acceptance criteria off the ticket record, runs the checks, starts the app when a criterion is about what a user would see, and returns a Definition of Done that act 6 transcribes verbatim. |
@@ -318,16 +407,16 @@ not review strategy. Where their conclusions conflict, both stand.
 
 ## Recommended order
 
-planning → standup → grooming → rfc → adr → work → cab → signoff → retro →
-audit → steering
+planning → standup → grooming → rfc → adr → work → review → cab → signoff →
+retro → audit → steering
 
 No ceremony checks the order. The order is recommended, and recommendation is
-the strongest instrument this process has — except for the four gates, which are
-not recommendations.
+the strongest instrument this process has — except for the gates, which are not
+recommendations.
 
 ## Known limitations (observed in dogfooding)
 
-Nine, plus one that is not a limitation. They were raised in retrospective and
+Ten, plus one that is not a limitation. They were raised in retrospective and
 converted into action items (owner: unassigned, due: next sprint).
 
 - **The eight acts are not guaranteed on smaller models.** Around a ceremony
@@ -359,6 +448,13 @@ converted into action items (owner: unassigned, due: next sprint).
   condition has a disposition and that a blocked check was escalated, but the
   *reason* in a waiver and the command quoted in an escalation are prose. A
   `waived — not needed` passes the counter.
+- **The Engineer can still route around its own gate with `Bash`.** The write
+  gate now checks *who* is editing as well as *whether* the ticket was accepted,
+  and it checks it on `Edit`, `Write`, `MultiEdit` and `NotebookEdit`. A shell
+  heredoc is not one of those, so a chair determined to write code itself still
+  can. It is recorded, with `"by": "chair"` on the entry, and the sign-off gate
+  refuses a turn whose implementation carries it — which is refusal after the
+  fact, and after the fact is the best a post-hook can do.
 - **The write gate covers `Edit` and `Write`, not `Bash`.** A heredoc written
   through a shell command changes a file without passing the gate, so a
   determined turn can route around grooming. Bash is left ungated on purpose —
@@ -417,6 +513,23 @@ header on smaller models; a clarification invented under an act heading naming
 a Product Owner that never ran; and a shell write that left no trace on the
 record.
 
+Closed by v2.2.0, and it was the big one: **the chair made the change itself and
+then convened six agents to admire it.** Every role in v2.1 was read-only,
+including the one called Engineer, which held a standup. So the process had six
+independent readers of a diff that the reporting model had written, which is one
+pair of eyes wearing seven hats.
+
+v2.2 splits the role in two. `ceremony:team-member` holds the standup;
+`ceremony:engineer` is an implementer with write tools, and it is the only
+participant the write gate lets through — the chair included, by name, with the
+agent to convene stated in the refusal. `ceremony:reviewer` answers the accepted
+criteria against the resulting diff, and the Product Owner's acceptance now needs
+that verdict as well as its own. The chair's job in the middle is to read the
+diff, and that reading is recorded and checked: an act 5 with no reading after it
+is sent back. The counts in acts 5 and 7 are the runtime's measurements rather
+than the author's claim, and a disagreement between the two is recorded and
+blocked on. The turn takes longer. It was supposed to.
+
 Closed by v2.1.0: a Change Advisory Board whose conditions were never applied,
 waived or answered at all; a turn that hit a missing toolchain, marked four
 checks `BLOCKED` and still closed on a bare `Work delivered: yes`; and a QA
@@ -432,12 +545,24 @@ agent return and the `Stop` hook checks the result.
 ## FAQ
 
 **Does it work for large, complex tasks?**
-Yes. Eight acts regardless of task size. Also eight acts, and four agents, for a
-one-character change.
+Yes. Nine acts regardless of task size. Also nine acts, and six agents in four
+stages, for a one-character change.
 
 **Does the work actually get done?**
 Yes. The ceremony surrounds the work, it never replaces it, and the board cannot
 reject — so nothing stalls in review.
+
+**Who writes the code?**
+`ceremony:engineer`, and nothing else. It is the only agent with write tools and
+the only participant the write gate admits. The model you are talking to chairs
+the meeting and is refused by name if it tries to edit; the refusal tells it
+which agent to convene. This is the change v2.2 exists for.
+
+**Does it commit?**
+No, and it never will. The working tree is what act 7 signs for, the rollback
+promise only holds while the change is uncommitted, and committing is the one
+decision in this process that was never delegated. Every standard turn closes
+with `· Committed: no (the tree is yours)`.
 
 **Is the sign-off real?**
 The signatures are quotations. Each ✓ names the agent that produced it and the
@@ -450,7 +575,7 @@ Then its role is withheld, in the fixed form `— withheld (role not convened)`.
 That is the ordinary outcome, not a failure, and it is written without apology.
 
 **Can I use the ceremonies without the output style?**
-Yes. That is the default after install: twelve slash commands, no protocol. The
+Yes. That is the default after install: thirteen slash commands, no protocol. The
 hooks still run.
 
 **How do I turn the enforcement off?**
@@ -458,9 +583,9 @@ hooks still run.
 out**.
 
 **Is it compatible with other plugins?**
-Yes. `ceremony` registers one output style, twelve commands, six agents and seven
-hooks, and touches nothing else. Its hooks ignore every agent that is not one of
-its own.
+Yes. `ceremony` registers one output style, thirteen commands, eight agents and
+nine hook scripts, and touches nothing else. Its hooks ignore every agent that is
+not one of its own.
 
 **What happens during a change freeze?**
 The window is named in the change advisory board's minutes, the Release Manager

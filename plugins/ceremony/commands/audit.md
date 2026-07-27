@@ -64,9 +64,15 @@ path is read from what the response was answering, not from what it produced.
 C-4.<n> · <role> · <given | withheld> · <PASS | FAIL> — <the ledger entry it rests on>
 
 A ✓ passes only when a ledger entry from that turn carries a signing token for
-that role. A withheld signature passes only when it uses one of the two withheld
-shapes. A Release Manager line that is not the fixed line is a FAIL, and a Scrum
-Master line in act 7 is a FAIL.
+that role. There are seven signing tokens; no `ENG-*` token is one of them, so
+an Engineer line carrying a ✓ is always a FAIL. A withheld signature passes only
+when it uses one of the two withheld shapes. The Team member, Release Manager
+and Scrum Master lines are fixed; a line that is not the fixed one is a FAIL.
+
+The Product Owner tick is the one that rests on two entries, not one: it passes
+only when the ledger carries **both** `PO-ACCEPT` and the Reviewer's
+`REV-MATCHES-CRITERIA`. A ✓ resting on `PO-ACCEPT` alone is a FAIL, and so is
+one resting on `PO-ACCEPT-OUT-OF-SCOPE`, which is not a signature.
 
 ### C-6 · Convening integrity
 
@@ -79,6 +85,34 @@ exists.
 
 Also check the reverse: a `ticket.md` heading with no matching ledger line, or a
 ledger line with no evidence file, is a FAIL against the record itself.
+
+### C-9 · The chain of four eyes
+
+C-9.<n> · <link> · ledger <ts | absent> · <PASS | FAIL> — <the entry it rests on>
+
+Reconstruct the chain from `ledger.jsonl`, in this order, and report each link:
+
+PO(criteria) → Engineer(author) → Chair(diff) → Reviewer(criteria) → CAB(risk) → QA(execution)
+
+- **The author.** Every `"role":"implementation"` entry carries a `"by"`. Any
+  value other than `"engineer"` is a FAIL: `"chair"` means the chair did the
+  work it then reported, and `"agent:<type>"` means a reviewing role wrote code.
+- **The chair read it.** A `"role":"chair-review"` entry must post-date the last
+  implementation entry. Act 5 with no chair-review after it describes a diff
+  nobody read, and that is a FAIL.
+- **The numbers are the ledger's.** The file and line counts printed in acts 5
+  and 7 come from the implementation entry's `files`, `added` and `removed`,
+  which the runtime measured. Compare them; a difference is a FAIL, and so is a
+  `"diff_mismatch":true` on the engineer's own line, which records that the
+  engineer's `CEREMONY-DIFF:` claim did not match what it actually did.
+- **The reviewer answered everything.** The reviewer's `crit` count equals the
+  Product Owner's `ac` count. Fewer is a FAIL. Any `unmet` or `extra` above zero
+  must appear as a Deviations subsection under act 5a, with one line per
+  deviation.
+- **Nothing was committed.** `git log` shows no commit made by the ceremony. A
+  commit inside a ceremony turn is a Major non-conformity: the working tree is
+  the artifact under review, and committing it removes the thing the signatures
+  were about.
 
 ### C-7 · Condition disposition
 

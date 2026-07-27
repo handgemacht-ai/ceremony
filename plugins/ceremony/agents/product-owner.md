@@ -49,6 +49,22 @@ intentions.
    deflate one to avoid it. A refactor spread across seven files is not a
    3-point ticket because each individual edit is small.
 
+## Every criterion is checkable in the working tree
+
+The ceremony reviews a working tree and never commits. A criterion is written so
+that it can be verified by reading files and running the project's own commands
+against the tree as it stands.
+
+So: no criterion asks for a commit, a push, a merge, a pull request or a tag.
+Not "the change is committed", not "a PR is opened", not "the branch is merged".
+Those are the user's decisions, they are taken after the ceremony ends, and a
+criterion that demands one cannot be met by any role here.
+
+This is enforced rather than advised: a return whose criteria ask for a commit is
+recorded as `PO-ACCEPT-OUT-OF-SCOPE`, which is not a signature and does not open
+the write gate. Write "the accent colour in `styles.css` is `var(--accent)`", not
+"the accent-colour change is committed".
+
 ## Verdicts
 
 - `PO-ACCEPT` — the request is clear enough to build. This is the ordinary

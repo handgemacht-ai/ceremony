@@ -1,6 +1,7 @@
 #!/bin/sh
 # ceremony :: Stop
-# Twelve rules, checked in order. The first one tripped sends the turn back.
+# Twenty-one rules. A to L are checked in order and the first one tripped sends
+# the turn back; M to U are the chain of four eyes and are reported together.
 # A turn gets at most two corrections; the third stop is always allowed through.
 set -u
 trap 'exit 0' EXIT
@@ -111,8 +112,8 @@ ACT4=$(printf '%s' "$MSG" | awk '
 # --- A: a token nobody returned --------------------------------------------
 # Every token in act 7 is a quotation. Ticked or withheld, it has to have been
 # said by an agent that ran, and the ledger is where it was said.
-SIGNING='PO-ACCEPT ARCH-RECORDED CAB-APPROVED CAB-APPROVED-WITH-CONDITIONS QA-PASS SC-ALIGNED-WITH-RESERVATIONS'
-WITHHOLDING='ENG-REPORTED PO-CLARIFY CAB-NOTHING-TO-REVIEW QA-PARTIAL QA-FAIL QA-BLOCKED MALFORMED'
+SIGNING='PO-ACCEPT ARCH-RECORDED CAB-APPROVED CAB-APPROVED-WITH-CONDITIONS QA-PASS SC-ALIGNED-WITH-RESERVATIONS REV-MATCHES-CRITERIA'
+WITHHOLDING='TEAM-REPORTED PO-CLARIFY PO-ACCEPT-OUT-OF-SCOPE CAB-NOTHING-TO-REVIEW QA-PARTIAL QA-FAIL QA-BLOCKED ENG-IMPLEMENTED ENG-BLOCKED ENG-NO-CHANGE REV-DEVIATES REV-INCOMPLETE REV-NOTHING-TO-REVIEW MALFORMED'
 for tok in $(printf '%s' "$ACT7" | grep -o '[A-Z][A-Z0-9-]*' 2>/dev/null | sort -u); do
   case " $SIGNING $WITHHOLDING " in *" $tok "*) ;; *) continue ;; esac
   if ! printf '%s' "$MINE" | grep -q '"verdict":"'"$tok"'"' 2>/dev/null; then
@@ -125,7 +126,7 @@ CHECK=$(printf '\342\234\223')
 for tok in $(printf '%s' "$ACT7" | grep -F "$CHECK" 2>/dev/null | grep -o '[A-Z][A-Z0-9]*-[A-Z0-9-]*' 2>/dev/null | sort -u); do
   case "$tok" in CEREMONY-*|SIGN-OFF) continue ;; esac
   case " $SIGNING " in *" $tok "*) continue ;; esac
-  block "Act 7 gives a tick to $tok. $tok is not a signing token: it withholds.\\n\\nOnly these six may carry a tick: PO-ACCEPT, ARCH-RECORDED, CAB-APPROVED, CAB-APPROVED-WITH-CONDITIONS, QA-PASS, SC-ALIGNED-WITH-RESERVATIONS. Every other token is written as: <Role> \\u2014 withheld ($tok). The Engineer reports rather than approves and withholds every time.\\n\\n$HATCH"
+  block "Act 7 gives a tick to $tok. $tok is not a signing token: it withholds.\\n\\nOnly these seven may carry a tick: PO-ACCEPT, ARCH-RECORDED, CAB-APPROVED, CAB-APPROVED-WITH-CONDITIONS, QA-PASS, SC-ALIGNED-WITH-RESERVATIONS, REV-MATCHES-CRITERIA. Every other token is written as: <Role> \\u2014 withheld ($tok).\\n\\nNo ENG-* token is among them and none ever will be: the Engineer implements and does not approve its own implementation. Its act 7 line is the fourth shape and carries no tick at all - Engineer \\u2014 implemented (ENG-IMPLEMENTED, ceremony:engineer) \\u00b7 <n> files, +<a> -<r>.\\n\\n$HATCH"
 done
 
 # --- C: a clock time in act 7 ------------------------------------------------
@@ -185,7 +186,7 @@ fi
 # Only heading lines are read, so quoting an agent type in prose costs nothing.
 for at in $(printf '%s' "$MSG" | grep '^[^A-Za-z]*[1-8] ' 2>/dev/null | grep -o 'ceremony:[a-z-]*' 2>/dev/null | sort -u); do
   r=${at#ceremony:}
-  case "$r" in engineer|product-owner|architect|change-advisory-board|qa|steering-committee) ;; *) continue ;; esac
+  case "$r" in team-member|engineer|reviewer|product-owner|architect|change-advisory-board|qa|steering-committee) ;; *) continue ;; esac
   printf '%s' "$MINE" | grep -q '"role":"'"$r"'"' 2>/dev/null && continue
   blockc "An act is headed $at, and $at did not run this turn. The ledger .ceremony/$TICKET/ledger.jsonl holds no entry for it, so whatever that act says - acceptance criteria, an estimate, a question to put to the user - was composed rather than collected.\\n\\nAn act whose agent was not convened is emitted with its number and heading and one line saying so, and the heading does not name an agent. An open question only stops the turn when the Product Owner really returned PO-CLARIFY and the ledger says so; an invented one stops the work for nothing.\\n\\nEither convene $at through the Agent tool and transcribe what comes back, or render that act as not convened and carry on with the work.\\n\\n$HATCH"
 done
@@ -235,6 +236,172 @@ if [ "$NBLK" -gt 0 ]; then
   esac
 elif [ "$HASESC" = yes ]; then
   block "The response carries an escalation block for $TICKET and nothing on the ledger is blocked: QA recorded no BLOCKED check this turn. An escalation with nothing to escalate asks the user for a decision they do not have to make.\\n\\nRemove the escalation block and the Verification clause from the closing line. The closing line keeps its four clauses, ending Work delivered: yes.\\n\\n$HATCH"
+fi
+
+# ---------------------------------------------------------------------------
+# Rules M to U: the four eyes.
+#
+# These are checked together and reported together. Nine separate corrections
+# against a budget of two would mean seven of them never being seen, so what
+# the turn gets back is one message listing everything wrong with the chain at
+# once. The budget stays at two because the budget is what makes this hook
+# terminate.
+# ---------------------------------------------------------------------------
+
+NOTES=''
+note() {
+  if [ -z "$NOTES" ]; then NOTES="$1"; else NOTES="$NOTES\\n\\n$1"; fi
+}
+
+ACT5=$(printf '%s' "$MSG" | awk '
+  index($0, "IMPLEMENTATION") { f = 1 }
+  index($0, "DEFINITION OF DONE") { f = 0 }
+  f { print }' 2>/dev/null)
+
+led_num() {
+  # last value of a numeric field on the last ledger line for a role
+  printf '%s' "$MINE" | grep '"role":"'"$1"'"' 2>/dev/null | tail -n 1 |
+    sed -n 's/.*"'"$2"'":\([0-9][0-9]*\).*/\1/p' | head -n 1
+}
+num_or_zero() {
+  case "${1:-}" in ''|*[!0-9]*) printf '0' ;; *) printf '%s' "$1" ;; esac
+}
+
+ENGV=$(printf '%s' "$MINE" | grep '"role":"engineer"' 2>/dev/null | tail -n 1 | sed -n 's/.*"verdict":"\([^"]*\)".*/\1/p')
+REVV=$(printf '%s' "$MINE" | grep '"role":"reviewer"' 2>/dev/null | tail -n 1 | sed -n 's/.*"verdict":"\([^"]*\)".*/\1/p')
+POV=$(printf '%s' "$MINE" | grep '"role":"product-owner"' 2>/dev/null | tail -n 1 | sed -n 's/.*"verdict":"\([^"]*\)".*/\1/p')
+
+IMPLLINE=$(printf '%s' "$MINE" | grep '"role":"implementation"' 2>/dev/null | grep '"by":"engineer"' | tail -n 1)
+MFILES=$(num_or_zero "$(printf '%s' "$IMPLLINE" | sed -n 's/.*"files":\([0-9][0-9]*\).*/\1/p')")
+MADDED=$(num_or_zero "$(printf '%s' "$IMPLLINE" | sed -n 's/.*"added":\([0-9][0-9]*\).*/\1/p')")
+MREMOVED=$(num_or_zero "$(printf '%s' "$IMPLLINE" | sed -n 's/.*"removed":\([0-9][0-9]*\).*/\1/p')")
+
+# --- M: the chair edited ----------------------------------------------------
+# Nobody in this ceremony can sign for that. There is no role behind it, no
+# brief it answered and no review that read it as a change.
+CHAIREDIT=''
+if [ -n "$TSTART" ]; then
+  for t in $(printf '%s' "$MINE" | grep '"role":"implementation"' 2>/dev/null | grep '"by":"chair"' | sed -n 's/.*"ts":"\([^"]*\)".*/\1/p'); do
+    [ "$t" \< "$TSTART" ] || CHAIREDIT=yes
+  done
+fi
+if [ -n "$CHAIREDIT" ]; then
+  case "$MSG" in
+    *'Ceremony has no signature for work the chair did itself'*) ;;
+    *) note "M \\u00b7 The chair edited. An implementation entry on $TICKET is stamped by:\\\"chair\\\", which means this turn changed a file with its own hands rather than through ceremony:engineer.\\n\\nThere is no signature available for that work: no brief it answered, no criteria it was written against, and no reviewer who read it as a change. Act 7 withholds every line, and the response says so in this exact sentence: The chair edited. Ceremony has no signature for work the chair did itself.\\n\\nThe change stays. It is the signatures that do not." ;;
+  esac
+fi
+
+# --- N: a diff nobody read --------------------------------------------------
+LASTIMPL2=$(printf '%s' "$MINE" | grep '"role":"implementation"' 2>/dev/null | sed -n 's/.*"ts":"\([^"]*\)".*/\1/p' | sort | tail -n 1)
+LASTREAD=$(printf '%s' "$MINE" | grep '"role":"chair-review"' 2>/dev/null | sed -n 's/.*"ts":"\([^"]*\)".*/\1/p' | sort | tail -n 1)
+if [ -n "$LASTIMPL2" ]; then
+  if [ -z "$LASTREAD" ] || [ "$LASTREAD" \< "$LASTIMPL2" ]; then
+    note "N \\u00b7 Act 5 describes a diff nobody read. The last change to $TICKET landed at $LASTIMPL2 and the ledger holds no reading of the working tree after it.\\n\\nRun git diff and git status --porcelain, read what comes back, and render act 5 from that. This is the third of the four eyes and it is the only one that is yours: the Product Owner wrote the criteria, the Engineer wrote the code, the Reviewer checks it against the criteria, and you look at what actually changed before you describe it to the user. A summary of a summary is not a reading."
+  fi
+fi
+
+# --- O: numbers that disagree with the measurement --------------------------
+if [ -n "$IMPLLINE" ]; then
+  CLAIM=$(printf '%s' "$ACT7" | grep -E '[0-9] +files?' 2>/dev/null | grep -F '+' | head -n 1)
+  [ -n "$CLAIM" ] || CLAIM=$(printf '%s' "$ACT5" | grep -E '[0-9] +files?' 2>/dev/null | grep -F '+' | head -n 1)
+  if [ -n "$CLAIM" ]; then
+    CN=$(printf '%s' "$CLAIM" | grep -o '[0-9][0-9]*' 2>/dev/null | tr '\n' ' ')
+    C1=$(num_or_zero "$(printf '%s' "$CN" | cut -d' ' -f1)")
+    C2=$(num_or_zero "$(printf '%s' "$CN" | cut -d' ' -f2)")
+    C3=$(num_or_zero "$(printf '%s' "$CN" | cut -d' ' -f3)")
+    if [ "$C1" != "$MFILES" ] || [ "$C2" != "$MADDED" ] || [ "$C3" != "$MREMOVED" ]; then
+      note "O \\u00b7 The response reports the size of the change as $C1 file(s), +$C2 -$C3. The ledger measured $MFILES file(s), +$MADDED -$MREMOVED, counted from the tool calls the engineer actually made rather than from its description of them.\\n\\nQuote the ledger's numbers, in act 5 and on the act 7 engineer line: Engineer \\u2014 implemented ($ENGV, ceremony:engineer) \\u00b7 $MFILES files, +$MADDED -$MREMOVED. Where the engineer's own CEREMONY-DIFF line disagrees with the measurement, the measurement is what is written and the disagreement is worth a sentence in act 5."
+    fi
+  fi
+fi
+
+# --- P: no signature under an implementation that did not happen ------------
+case "$ENGV" in
+  ENG-BLOCKED|ENG-NO-CHANGE|MALFORMED)
+    SIGNED=''
+    for tok in $(printf '%s' "$ACT7" | grep -o '[A-Z][A-Z0-9-]*' 2>/dev/null | sort -u); do
+      case " $SIGNING " in *" $tok "*) SIGNED="$SIGNED $tok" ;; esac
+    done
+    if [ -n "$SIGNED" ]; then
+      note "P \\u00b7 ceremony:engineer returned $ENGV on $TICKET and act 7 still carries signing token(s):$SIGNED.\\n\\nNothing was delivered for those signatures to be about. Every line in act 7 withholds on this turn - the withheld shapes are the whole of the act - and the engineer line reads: Engineer \\u2014 not implemented ($ENGV, ceremony:engineer) \\u00b7 0 files. Say plainly, in act 5, what was asked for and what stopped it."
+    fi
+    ;;
+esac
+
+# --- Q: an engineer return that could not be read, on files that moved ------
+if [ "$ENGV" = MALFORMED ]; then
+  EEDITS=$(num_or_zero "$(led_num engineer edits)")
+  if [ "$EEDITS" -gt 0 ]; then
+    case "$MSG" in
+      *"The engineer's return could not be read."*) ;;
+      *) note "Q \\u00b7 ceremony:engineer's return could not be read - its closing line was not one of ENG-IMPLEMENTED, ENG-BLOCKED or ENG-NO-CHANGE - and it changed $EEDITS file(s) before returning. The change is in the tree; the account of it is not on the record.\\n\\nAct 5 carries this line, exactly: The engineer's return could not be read. $EEDITS file(s) were changed by it; what was intended is not on the record.\\n\\nThen describe the diff you read yourself. Do not reconstruct the engineer's intent from the code; the point of the line is that it is unknown." ;;
+    esac
+  fi
+fi
+
+# --- R: a review that found deviations, rendered as though it had not -------
+RUNMET=$(num_or_zero "$(led_num reviewer unmet)")
+REXTRA=$(num_or_zero "$(led_num reviewer extra)")
+RDEV=$((RUNMET + REXTRA))
+if [ "$REVV" = REV-DEVIATES ] || [ "$REVV" = REV-INCOMPLETE ] || [ "$RDEV" -gt 0 ]; then
+  NDEV=$(printf '%s' "$ACT5" | grep -cE 'UNMET|EXTRA' 2>/dev/null) || NDEV=0
+  NDEV=$(num_or_zero "$NDEV")
+  HASDEV=no
+  DEVSAY='is missing'
+  if printf '%s' "$ACT5" | grep -q 'Deviations' 2>/dev/null; then HASDEV=yes; DEVSAY='is present'; fi
+  if [ "$HASDEV" = no ] || [ "$NDEV" -lt "$RDEV" ]; then
+    note "R \\u00b7 ceremony:reviewer returned $REVV on $TICKET: $RUNMET criterion/criteria unmet and $REXTRA change(s) nothing asked for. Act 5 carries $NDEV of those $RDEV line(s), and the Deviations subsection $DEVSAY.\\n\\nAct 5 ends with a Deviations subsection, one line per finding, quoting the reviewer's own CEREMONY-CRIT lines:\\n  - <n> UNMET \\u00b7 <the criterion> \\u2014 <what is missing>\\n  - <n> EXTRA \\u00b7 <what was changed> \\u2014 <file:line>\\n\\nAn EXTRA is not an accusation and an UNMET is not a failure of the turn; both are the record saying what the diff does that the ticket did not ask for, or does not do that it did. And while any of them stands, the Product Owner line in act 7 withholds: the criteria are the Product Owner's, and they have not all been met."
+  fi
+fi
+
+# --- T: the Product Owner's tick now needs the reviewer ---------------------
+# The substantive change of this version. Acceptance was one agent reading the
+# request; it is now one agent writing the criteria and a second, independent
+# one confirming the diff answers them.
+POLINE=$(printf '%s' "$ACT7" | grep 'Product Owner' 2>/dev/null | head -n 1)
+if [ "$POV" = PO-ACCEPT-OUT-OF-SCOPE ]; then
+  case "$MSG" in
+    *'re-scoped'*) ;;
+    *) note "T \\u00b7 The ledger records PO-ACCEPT-OUT-OF-SCOPE for $TICKET. The Product Owner's acceptance criteria asked for a commit, a push or a merge, and this ceremony never commits: the working tree is the artifact the last three eyes review, and a commit destroys it before they can.\\n\\nThe act 7 line reads: Product Owner \\u2014 withheld (PO-ACCEPT-OUT-OF-SCOPE). Act 2 says that the criteria demanded a commit and were re-scoped to what can be checked in the working tree as it stands, and the closing line ends Committed: no (the tree is yours). Committing remains the user's decision and it is taken outside the ceremony." ;;
+  esac
+elif printf '%s' "$POLINE" | grep -qF "$CHECK" 2>/dev/null; then
+  if [ "$POV" != PO-ACCEPT ] || [ "$REVV" != REV-MATCHES-CRITERIA ]; then
+    note "T \\u00b7 The Product Owner line in act 7 carries a tick. That tick now rests on two returns, and the ledger has product-owner=${POV:-not convened} and reviewer=${REVV:-not convened}.\\n\\nThe Product Owner writes the criteria; it never sees the diff. The Reviewer reads the diff against those criteria and is the one that can say they were met. So the line is ticked only when both are on the record, and it quotes both:\\n  Product Owner \\u2713 \\u2014 PO-ACCEPT + REV-MATCHES-CRITERIA (ceremony:product-owner, ceremony:reviewer)\\n\\nWith either one missing or dissenting, the line withholds with the Product Owner's own token in the brackets, and the Reviewer keeps its own separate line."
+  fi
+fi
+
+# --- S: a review that answered some of the criteria -------------------------
+if [ -n "$REVV" ] && [ "$REVV" != REV-NOTHING-TO-REVIEW ]; then
+  NAC=$(num_or_zero "$(led_num product-owner ac)")
+  NCRIT=$(num_or_zero "$(led_num reviewer crit)")
+  if [ "$NAC" -gt 0 ] && [ "$NCRIT" -lt "$NAC" ]; then
+    note "S \\u00b7 The reviewer answered $NCRIT of $NAC criteria. The Product Owner recorded $NAC CEREMONY-AC lines on $TICKET and ceremony:reviewer returned $NCRIT CEREMONY-CRIT lines against them, so $((NAC - NCRIT)) criterion/criteria went unexamined.\\n\\nEither convene ceremony:reviewer again with a brief naming the criteria it did not answer, or withhold its line and the Product Owner's: an unexamined criterion is not a met one. Whichever you choose, act 5a says how many of the criteria were actually reviewed."
+  fi
+fi
+
+# --- U: the header, and the one plural that is always wrong -----------------
+case "$MSG" in
+  *'1 pts'*|*'1 points'*)
+    note "U \\u00b7 The response writes 1 pts. One point is 1 pt, in the header and in act 2 alike. Every other value is pts: 2 pts, 3 pts, 5 pts." ;;
+esac
+EXPECT=$(cat "$DATA/sessions/$SID.header" 2>/dev/null) || EXPECT=''
+if [ -n "$EXPECT" ] && [ -n "$HDR" ]; then
+  case "$HDR" in
+    *'no ticket raised'*) ;;
+    *)
+      # Everything up to and including the ticket id is derived, not composed.
+      PREFIX=${EXPECT%%"$TICKET"*}"$TICKET"
+      case "$HDR" in
+        "$PREFIX"*) ;;
+        *) note "U \\u00b7 The header does not match the one the turn state handed over. It reads:\\n  $HDR\\nand the line to copy was:\\n  $EXPECT\\n\\nEverything up to the points clause is already filled in and is copied character for character - the sprint number and the ticket id are derived once, by a hook, before you were called. The slot after the sprint holds $TICKET and never a command name, a file name or a description of the request. Only <pts> is yours to fill in, from the Product Owner's estimate." ;;
+      esac
+      ;;
+  esac
+fi
+
+if [ -n "$NOTES" ]; then
+  blockc "The chain of four eyes is not complete on this turn. Everything below is wrong with it; fix all of it in one re-render.\\n\\n$NOTES\\n\\nThe chain, for reference: PO(criteria) \\u2192 Engineer(author) \\u2192 Chair(diff) \\u2192 Reviewer(criteria) \\u2192 CAB(risk) \\u2192 QA(execution). Each of the six looks at something the one before it could not.\\n\\n$HATCH"
 fi
 
 # --- H: the request handed back instead of answered -------------------------
