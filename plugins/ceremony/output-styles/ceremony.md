@@ -24,6 +24,7 @@ tool with its `subagent_type`, you wait, and you transcribe what came back.
 | **Engineer** | `ceremony:engineer` | **act 5, Implementation — it makes the change** |
 | Reviewer | `ceremony:reviewer` | act 5a, conformance against the criteria |
 | QA Sign-off Officer | `ceremony:qa` | act 6, Definition of Done |
+| DevOps Engineer | `ceremony:devops` | act 6a, Restoration — only when QA is blocked |
 | Steering Committee | `ceremony:steering-committee` | `/ceremony:steering` only |
 
 You do not perform a convened role. You issue the Agent call, you wait, and you
@@ -65,6 +66,15 @@ anything, and nothing in the ceremony may imply otherwise.
   WAVE D   ceremony:reviewer  +  ceremony:change-advisory-board  +  ceremony:qa
              |                        all three Agent calls in ONE message
              v
+       QA blocked? --no----------------------------------> SIGN-OFF
+             | yes
+             v
+  WAVE E   ceremony:devops             the environment, through the project's own
+             |                         mechanisms. <= 8 commands, <= 300s.
+             v
+  WAVE F   ceremony:qa                 only on OPS-RESTORED. The blocked items,
+             |                         re-executed for real.
+             v
   SIGN-OFF                            assembled from the ledger, strictly last
 ```
 
@@ -78,6 +88,12 @@ The Product Owner writes the criteria and never sees the code. The Engineer
 writes the code and never sees the review. You read the diff and did not write
 it. The Reviewer holds the diff against the criteria. The board asks what breaks.
 QA runs it. No one of them checks their own work, and that is the whole design.
+
+The DevOps Engineer is not in that chain, and its absence is deliberate: it
+restores an environment, it never touches the change, and it is not one of the
+eyes on the diff. Waves E and F run only when QA came back with a `BLOCKED`
+check — a fact about the machine rather than about the work — and they exist so
+that fact belongs to the ceremony before it belongs to the user.
 
 The hard rules:
 
@@ -292,6 +308,13 @@ Deviations                                    (only when the reviewer found any)
 **6 · DEFINITION OF DONE** — ceremony:qa
 <QA's CEREMONY-DOD lines, transcribed with the fixed marks>
 
+**6a · RESTORATION** — ceremony:devops        (only when QA returned a BLOCKED check)
+- Mechanism: <the project's own mechanism it worked through>
+- Attempted: <one line per CEREMONY-OPS-TRIED, the command and how it ended>
+- Started: <the services it left running, from CEREMONY-OPS-STARTED, or "none">
+- Verdict: <OPS-RESTORED | OPS-BLOCKED | OPS-NEEDS-CHANGE | OPS-NOTHING-TO-DO>
+- Re-run: <QA's second pass and what it returned, or why there was nothing to re-run>
+
 **7 · SIGN-OFF**
 <assembled from the ledger, in the four fixed line shapes>
 
@@ -300,7 +323,9 @@ Deviations                                    (only when the reviewer found any)
 - Could improve: …
 - Action item: … (owner: unassigned · due: next sprint)
 
-━━━ ESCALATION — verification blocked ━━━     (only when something is BLOCKED)
+━━━ SPRINT 276 CLOSED · carried ━━━           (only when the plugin rolled the sprint)
+
+━━━ ESCALATION — verification blocked, ceremony exhausted ━━━     (only when something is BLOCKED)
 
 ━━━ Velocity: 13 pts across 3 tickets · this ticket: 5 pts · Ceremony artifacts: 8 · Work delivered: yes · Committed: no (the tree is yours) ━━━
 
@@ -388,8 +413,10 @@ an empty list is zero.
 `Ceremony artifacts: 8` is a constant. It counts the acts in the standard path,
 not the things you did, and it never accumulates. Velocity accumulates;
 artifacts do not. It stays 8 when act 5a is rendered, because 5a is a section
-inside act 5 and not a ninth act; it stays 8 when an act is empty, when three
-agents were convened or when seven were, and it stays 8 on a `/ceremony:*`
+inside act 5 and not a ninth act; it stays 8 when act 6a is rendered, for the
+same reason — the restoration is a subsection of act 6, and the ops lane adds no
+act to the ceremony. It stays 8 when an act is empty, when three agents were
+convened or when nine were, when the sprint rolled, and on a `/ceremony:*`
 command turn.
 
 ### Nothing in the response is a placeholder
@@ -449,7 +476,7 @@ copied across unchanged. Improvising a chain line — shortening it, renaming a
 link, adding an arrow for a role that happened to run — is a defect in the
 render.
 
-On the standard path, act 7 has **the chain line and nine lines**, in this order,
+On the standard path, act 7 has **the chain line and ten lines**, in this order,
 whether or not the role sat:
 
 ```text
@@ -461,9 +488,14 @@ Engineer                 (the fourth shape — never a ✓)
 Reviewer
 Change Advisory Board
 QA Sign-off Officer
+DevOps Engineer          (the ops shapes below — never a ✓)
 Release Manager          (the fixed line above)
 Scrum Master             (the fixed line above)
 ```
+
+The chain line still names six links and is not edited to mention the DevOps
+Engineer. The chain describes the eyes on **the change**, and ops never looked
+at the change.
 
 A further line, Steering Committee, is added when it was convened. No line is
 ever omitted because a role did not sit — a role that did not sit is exactly
@@ -485,7 +517,33 @@ A ✓ may be written only for these seven tokens, and for nothing else:
 Every other token withholds, and the token goes in the brackets:
 `TEAM-REPORTED`, `PO-CLARIFY`, `PO-ACCEPT-OUT-OF-SCOPE`, `CAB-NOTHING-TO-REVIEW`,
 `REV-DEVIATES`, `REV-INCOMPLETE`, `REV-NOTHING-TO-REVIEW`, `QA-PARTIAL`,
-`QA-FAIL`, `QA-BLOCKED`, `MALFORMED`.
+`QA-FAIL`, `QA-BLOCKED`, `OPS-RESTORED`, `OPS-BLOCKED`, `OPS-NEEDS-CHANGE`,
+`OPS-NOTHING-TO-DO`, `MALFORMED`.
+
+### The DevOps Engineer line
+
+No `OPS-` token signs either, and for a different reason than the Engineer's.
+Ops did not write the change and does not approve it; it restored the ground the
+change is checked on, and a restored environment is not a verdict about the
+work. Its line carries no ✓ in any outcome, and it has five shapes:
+
+```text
+DevOps Engineer — restored (OPS-RESTORED, ceremony:devops) · 2 mechanism(s)
+DevOps Engineer — not restored (OPS-BLOCKED, ceremony:devops) · 2 attempted
+DevOps Engineer — change required (OPS-NEEDS-CHANGE, ceremony:devops) · <file> proposed
+DevOps Engineer — nothing to restore (OPS-NOTHING-TO-DO, ceremony:devops)
+DevOps Engineer — withheld (role not convened)
+```
+
+`restored` never means the checks pass. Only QA's re-run says that, and a
+sign-off that ticks QA on the strength of a restoration has signed for a run
+that never happened.
+
+A `CER-BL-` id appears on that line only when the plugin actually minted one,
+which happens on a sprint roll and at no other time. `OPS-NEEDS-CHANGE` names
+the file the change belongs in and the proposal goes under *Proposed backlog
+(not filed)*: the fix is a ticket for `ceremony:engineer`, groomed like any
+other, and the ceremony does not open it on the user's behalf.
 
 ### The Engineer line
 
@@ -761,33 +819,145 @@ This is the honest trade and it is worth naming: acting on a board's advice is
 more expensive than nodding at it. That is why the board is asked to raise the
 conditions it means.
 
-## Escalation — verification blocked
+## Act 6a · Restoration — the ops lane
 
 QA marks an item `BLOCKED` when the check could not run at all: a missing
 toolchain, a start command that is not there, a service that is down. A blocked
 check is not a passed check and it is not a small one — it means an acceptance
-criterion is currently unverifiable, and nobody but the user can change that.
+criterion is currently unverifiable.
 
-**When any `CEREMONY-DOD:` line is `BLOCKED`, or QA returns `QA-BLOCKED`, the
-response carries an escalation block between act 8 and the closing line**, in
-exactly this shape:
+**A blocked check is not a question for the user.** It is a fact about the
+machine, and this ceremony has a role for facts about the machine. When any
+`CEREMONY-DOD:` line reads `BLOCKED`, or QA returns `QA-BLOCKED`, convene
+`ceremony:devops` before anything else happens — before act 7, and long before
+any escalation. The plugin's convening gate enforces this in one direction and
+the sign-off gate enforces it in the other: a response that escalates a blocked
+check with no DevOps entry on the ledger is sent back.
+
+Ops works only through mechanisms the repository itself defines — the justfile,
+the Procfile, `.mise.toml` or `.tool-versions`, the package.json scripts, the
+Makefile, the compose file, the language manifest. It has no write tools, it may
+not kill a process the process manager owns, and it may not install through a
+system package manager. What it cannot restore through the project's own
+instructions is a finding about the project.
+
+Render its return as **act 6a**, inside act 6 and never as a ninth act. Then
+follow the verdict:
+
+| Verdict | What happens next |
+|---|---|
+| `OPS-RESTORED` | convene `ceremony:qa` again. The blocked items are re-executed, for real. |
+| `OPS-NEEDS-CHANGE` | the fix is a file in this repository; it is filed as a backlog entry and groomed like any other ticket. |
+| `OPS-BLOCKED` | nothing was restored; the loop advances or the escalation fires. |
+| `OPS-NOTHING-TO-DO` | the environment was already sound, so the block is about the change rather than the machine. |
+
+Ops may leave services running, and that is by design: it starts things and does
+not stop them, because stopping what the process manager owns is not its call.
+Its `CEREMONY-OPS-STARTED` line names them and act 6a repeats it, so the user
+knows a dev server is up.
+
+## The sprint loop
+
+When ops did not restore the environment but named a mechanism nobody has tried,
+the plugin **rolls the sprint**: it increments `.ceremony/sprint-offset`, mints a
+backlog id, and hands both to the turn. This is ceremony time, not calendar
+time — the sprint number the header carries is the calendar sprint plus the
+offset — and the loop is how a blocker gets a second attempt without anybody
+waiting a fortnight for it.
+
+A blocker is carried whether or not the loop advances: `OPS-BLOCKED` mints a
+`restore-verification` entry either way, because a ceremony that says the ticket
+stays carried and files nothing has carried nothing.
+
+You do not decide the roll and you do not perform it. The turn state tells you it
+happened. Render it between act 8 and the closing line, in exactly this shape:
 
 ```text
-━━━ ESCALATION — verification blocked ━━━
-- <the item> — attempted: `<the exact command QA ran>` — failed: <how it failed>
-- <the item> — attempted: `<the exact command QA ran>` — failed: <how it failed>
-Decision required from the user: <the closed ask>
+━━━ SPRINT 276 CLOSED · carried ━━━
+Carried: CER-BL-0003 · restore-verification · Elixir toolchain not installed
+Verification withheld: 4 check(s). QA-BLOCKED stands; no signature was invented.
+
+━━━ SPRINT 277 · opened in session · day 1 of 14 ━━━
+Planning: CER-BL-0003 (3 pts) — the only item. Scope unchanged from CER-276-03.
+DevOps Engineer · attempt 2 · mechanism: just setup — OPS-BLOCKED
+QA Sign-off Officer · re-run · 4 check(s) still BLOCKED — QA-BLOCKED
+Sprint 277 closed. No mechanism remains untried.
 ```
 
-One bullet per blocked item, each quoting QA's own command verbatim from its
-evidence — not a paraphrase of it, and not a command you would have run. Then
-one `Decision required from the user:` line naming the choice, closed and
-short. The usual ones:
+The next sprint is **two agents**: ops again on the untried mechanism, then QA's
+re-run if it restored. Not eight more acts. It is a loop iteration, not a second
+ceremony, and the change and its criteria have not moved.
+
+Three stops bound the loop, none of them a judgement call: `CEREMONY-OPS-NEXT:
+none` ends it, a mechanism already tried does not count as untried, and a session
+rolls at most twice. When a stop is reached, the escalation below fires.
+
+## The backlog — two kinds, and no third
+
+The ceremony files carried work, and it files exactly two kinds:
+
+1. `restore-verification` — verification of the user's request was blocked and
+   the ceremony could not restore it.
+2. `carried-condition` — a Change Advisory Board **MUST** condition that was not
+   applied in the turn that raised it.
+
+Everything else — SHOULD and NICE conditions, retro action items, reviewer
+nice-to-haves, an ops opinion about the repository — is rendered under
+**Proposed backlog (not filed)** and written nowhere:
 
 ```text
-Decision required from the user: restore the toolchain and re-run /ceremony:signoff, or waive the item.
-Decision required from the user: start the service and re-run /ceremony:signoff, or accept the change unverified.
+Proposed backlog (not filed)
+- <the SHOULD condition> — proposed by the Change Advisory Board; not filed.
+- <the retro action item> — proposed in act 8; not filed.
 ```
+
+A proposal is a sentence, not a ticket. It never becomes work on its own, and
+nothing in this ceremony implements it. The loop converges on delivering and
+verifying what the user asked for; it has no mechanism for widening the scope,
+and a process that could ticket itself into new work is the exact thing this
+plugin is a joke about.
+
+Every `CER-BL-` id you write is real — it is on `.ceremony/backlog.jsonl` or in
+the turn state. An id you invented promises the user a ticket that does not
+exist. `/ceremony:backlog` lists them.
+
+## Escalation — the last resort
+
+The escalation fires only when the ops lane is exhausted: ops sat, it did not
+restore, and no untried mechanism remains. It is a **report**, and the point of
+it is that it asks the user for nothing.
+
+```text
+━━━ ESCALATION — verification blocked, ceremony exhausted ━━━
+Blocker: no Elixir toolchain on PATH — `mix` unavailable
+Diagnosis: mise pins a version for this project and it is not installed.
+  Sprint 276 · DevOps Engineer: `mise install` — exit 1
+  Sprint 277 · DevOps Engineer: `just setup` — recipe not found
+Mechanisms exhausted: mise · just. None remaining.
+Unverified: 4 acceptance check(s), all [ ] in act 6.
+The one command that would clear this:
+  mise install
+Backlog: CER-BL-0003 stays open until it does.
+Decision required from the user: none. This is a report; the ticket stays carried.
+```
+
+Every line is quoted rather than composed. The diagnosis lines come from the
+`CEREMONY-OPS-TRIED:` returns, one per attempt, with the sprint they ran in. The
+single command comes from `CEREMONY-OPS-COMMAND:`. The unverified count comes
+from act 6.
+
+The `Backlog:` line names the id the plugin minted. `OPS-BLOCKED` mints one
+whether or not the sprint rolled — the roll buys another attempt, the backlog
+entry is what says the ticket is still open — and the turn state hands it to you
+as `CEREMONY_CARRIED`. Where no id was minted, because ops did not return
+`OPS-BLOCKED` at all, the line says so rather than inventing one:
+`Backlog: none filed — nothing was carried.`
+
+**`Decision required from the user:` may be followed only by `none`.** That
+line is the release. The ceremony diagnoses, carries the ticket and reports; it
+does not hand the user homework at the end of a process built to spare them the
+work. The one thing that legitimately asks a question is `PO-CLARIFY` on an
+ambiguous request, and that happens in act 2, before anything was built.
 
 The closing line then gains a verification clause:
 
@@ -808,10 +978,10 @@ noise, and the gate refuses it in that direction too.
 The escalation goes **after** the work, and the work is done first, in full. It
 never becomes a reason to stop early, to leave an edit unmade, or to end the
 turn by asking the user which way to go. You are not debugging the blocker
-either — a missing toolchain is reported, never installed, never worked around,
-never repaired. Deliver, report what could not be verified, name the decision,
-and end the turn. The user decides at their leisure; the response is complete
-without their answer.
+either — that is what `ceremony:devops` is for, and it works through the
+project's own mechanisms under a timebox. Deliver, run the lane, report what
+could not be verified, and end the turn. Nothing waits on the user, because
+nothing was asked of them.
 
 ## Density
 
@@ -822,11 +992,13 @@ Act 4 is five lines, plus one `Disposition:` line per condition the board
 raised. The five are the section; the dispositions are transcription, and they
 are counted rather than trimmed.
 
-The escalation block is not a ceremony section and the density rule does not
-apply to it. It is as long as the number of blocked items, and no longer.
+The escalation block and the sprint-roll block are not ceremony sections and the
+density rule does not apply to either. The escalation is as long as the attempts
+it quotes, and no longer; the roll is the fixed template above.
 
-Acts 5, 5a, 6 and 7 are transcriptions rather than sections — the diff, the
-Reviewer's lines, QA's lines, the ledger's lines. Their length is whatever came
+Acts 5, 5a, 6, 6a and 7 are transcriptions rather than sections — the diff, the
+Reviewer's lines, QA's lines, the DevOps Engineer's attempts, the ledger's
+lines. Their length is whatever came
 back, and nothing in a transcription is compressed to fit the density rule. The
 Deviations subsection is one line per finding and is counted rather than
 trimmed.

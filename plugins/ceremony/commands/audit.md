@@ -52,6 +52,15 @@ yourself: this control checks transcription, and an auditor who recomputes is
 auditing its own arithmetic. Velocity and the ADR number are still checked
 against the responses and `docs/adr/`.
 
+The sprint number has two parts once the loop has run, and both are disclosed:
+
+C-2.1 · sprint · stated 277 · calendar 276 + 1 carried in session · PASS
+
+The calendar sprint and the offset are both in the turn state, and
+`.ceremony/sprint-offset` holds the offset on disk. A derived number that
+silently stopped being derived is exactly what this plugin exists to catch, and
+it has to catch it about itself.
+
 ### C-3 · Act completeness
 
 C-3.<n> · response <n> · path <standard | LCP-2 | LCP-1> · acts <found>/<expected> · <PASS | FAIL>
@@ -65,9 +74,11 @@ C-4.<n> · <role> · <given | withheld> · <PASS | FAIL> — <the ledger entry i
 
 A ✓ passes only when a ledger entry from that turn carries a signing token for
 that role. There are seven signing tokens; no `ENG-*` token is one of them, so
-an Engineer line carrying a ✓ is always a FAIL. A withheld signature passes only
-when it uses one of the two withheld shapes. The Team member, Release Manager
-and Scrum Master lines are fixed; a line that is not the fixed one is a FAIL.
+an Engineer line carrying a ✓ is always a FAIL. So is a DevOps Engineer line
+carrying one: ops restores an environment and never approves a change, and no
+`OPS-*` token signs. A withheld signature passes only when it uses one of the
+two withheld shapes. The Team member, Release Manager and Scrum Master lines are
+fixed; a line that is not the fixed one is a FAIL.
 
 The Product Owner tick is the one that rests on two entries, not one: it passes
 only when the ledger carries **both** `PO-ACCEPT` and the Reviewer's
@@ -134,6 +145,34 @@ that turn carries the escalation block and the `Verification: blocked
 (escalated)` clause on its closing line. A turn that closed on a bare `Work
 delivered: yes` with blocked verification is a FAIL, and the non-conformity is
 Major: it is the control that stops unverifiable work being reported as done.
+
+### C-10 · Loop integrity
+
+C-10.<n> · <check> · <observed> · <expected> · <PASS | FAIL>
+
+The ops lane and the sprint loop are machinery that writes to disk, so they are
+audited against disk. Four checks, in this order:
+
+- **The offset matches the rolls.** `.ceremony/sprint-offset` equals the number
+  of sprint rolls this session's responses rendered. An offset that moved with
+  no roll on the page, or a roll on the page with no offset, is a FAIL.
+- **Every rendered id exists.** Every `CER-BL-` id quoted in a response is a
+  line in `.ceremony/backlog.jsonl` or a pending row in
+  `.ceremony/<ticket>/carry.jsonl`. An id that exists nowhere was written rather
+  than collected, and that is a Major non-conformity: it promises the user a
+  ticket that does not exist.
+- **Every filed entry was rendered.** The reverse direction. A backlog entry
+  filed during this session that no response ever named is a FAIL — a carried
+  blocker the user was not told about is a promise made behind their back.
+- **No kind outside the two.** Every entry's `"kind"` is `restore-verification`
+  or `carried-condition`. No code path in the plugin writes a third, so a third
+  is a FAIL against the record itself.
+
+Also check the lane's own ordering: a `"role":"devops"` entry exists only where
+a QA entry before it recorded a blocked check, and a `QA-PASS` that follows an
+`OPS-RESTORED` carries `"attempt":2` with a `"bash"` count above zero. A re-run
+that ran nothing is the cheapest way to fake convergence, and it is a Major
+non-conformity when it happens.
 
 ## 4. Non-conformity register
 

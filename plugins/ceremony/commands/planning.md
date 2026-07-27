@@ -37,7 +37,15 @@ never chosen — a capacity you picked is not a capacity, it is a wish.
 
 ## 3. Carry-over (from the repository, not from memory)
 
-Collect, using read-only commands only:
+**The ceremony's own backlog comes first.** The turn state names how many
+entries are open, and `.ceremony/backlog.jsonl` holds them. Every open entry is
+carry-over, quoted by its id and its summary as written, and it does not need an
+estimate invented for it if it already carries one. These are the tickets the
+ceremony carried because verification was blocked or a MUST condition was not
+applied — they are the loop's unfinished business, and planning is where it gets
+picked up rather than quietly forgotten.
+
+Then collect, using read-only commands only:
 
 - the working tree state (`git status --short`),
 - stashes (`git stash list`),
@@ -47,10 +55,14 @@ Collect, using read-only commands only:
 
 Each finding becomes one carry-over line with a Fibonacci estimate.
 
-Every carry-over item cites the fact it came from — a path, a commit subject, a
-stash entry, or a `file:line` marker. An item you cannot cite is not carry-over;
-leave it out. If there is nothing to carry over, the section reads "No
-carry-over. The previous sprint closed clean." and that is a valid sprint.
+Every carry-over item cites the fact it came from — a backlog id, a path, a
+commit subject, a stash entry, or a `file:line` marker. An item you cannot cite
+is not carry-over; leave it out. If there is nothing to carry over, the section
+reads "No carry-over. The previous sprint closed clean." and that is a valid
+sprint.
+
+A backlog entry is picked up, never rewritten. Its scope is the scope it was
+filed with, and planning is not the place to widen it.
 
 ## 4. Backlog and grooming
 

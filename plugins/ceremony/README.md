@@ -1,9 +1,10 @@
 # ceremony
 
-Maximum process rigor for Claude Code. v2.2 ships a full ceremony cycle as a
-native output style, eight role agents that are actually convened — one of which
-writes the code, and it is not the chair — hooks that keep the record, and
-thirteen ceremonies you can run on their own.
+Maximum process rigor for Claude Code. v2.3 ships a full ceremony cycle as a
+native output style, nine role agents that are actually convened — one of which
+writes the code, and it is not the chair — hooks that keep the record, a DevOps
+Engineer that restores a blocked check instead of handing you a chore, and
+fifteen ceremonies you can run on their own.
 
 ## Install
 
@@ -37,6 +38,9 @@ turn it on. See **Enable the output style** in the
 - `commands/signoff.md` — the Definition of Done, assessed by the QA
   agent and transcribed verbatim.
 - `commands/ticket.md` — the ticket record, the ledger and the evidence listing.
+- `commands/backlog.md` — the carried tickets, read-only.
+- `commands/sprint.md` — closes the sprint, carries what is unfinished, and runs
+  the next iteration of the loop.
 - `commands/retro.md` — the sprint retrospective, read off the ledger.
 - `commands/audit.md` — the compliance audit of this session's ceremonies,
   reconciled against the ledger, including the auditor.
@@ -52,6 +56,8 @@ turn it on. See **Enable the output style** in the
 - `agents/change-advisory-board.md` — the three-seat board behind `/ceremony:cab`.
 - `agents/qa.md` — the Definition of Done, with the app started and the served
   bytes read.
+- `agents/devops.md` — restoration of a blocked check, through the project's own
+  mechanisms only. No write tools, no kills, no system package managers.
 - `agents/steering-committee.md` — the three-seat committee behind
   `/ceremony:steering`.
 - `hooks/hooks.json` and nine `sh` scripts — the turn state, the four gates, the
@@ -77,8 +83,14 @@ without having seen the implementation reasoning; the board reads risk; QA runs
 it. The Product Owner's acceptance now needs the Reviewer's verdict as well as
 its own — one signature resting on two independent readings.
 
-The cost, in agents, for a small ticket: six, in four stages. A full ticket: seven,
-in five. The wall-clock cost is the point of the exercise, not a defect in it.
+The DevOps Engineer is not in that chain, and that is deliberate: it restores an
+environment and never looks at the change.
+
+The cost, in agents, for a small ticket: six, in four stages. A full ticket:
+seven, in five. A full ticket whose verification was blocked and then restored:
+nine. One sprint roll: eleven. The ceiling, at two rolls, is thirteen and about
+fifteen minutes. The wall-clock cost is the point of the exercise, not a defect
+in it.
 
 ## The ceremony never commits
 
@@ -147,14 +159,32 @@ looked, so QA sits a second time on the code as it now stands: an applied
 condition is one extra agent, and that is the price of acting on advice.
 
 When QA marks any check `BLOCKED` — a missing toolchain, a start command that is
-not there — the response carries an escalation block between act 8 and the
-closing line, quoting the exact command that failed and naming the decision the
-user has to make, and the closing line ends `Work delivered: yes · Verification:
-blocked (escalated)`. The blocker is reported, never repaired.
+not there — the ceremony convenes `ceremony:devops` before it says anything to
+you. It works only through mechanisms the repository defines — the justfile, the
+Procfile, `.mise.toml`, the package scripts, the Makefile, the compose file, the
+language manifest — under a timebox of eight commands and 300 seconds. It has no
+write tools, it may not kill a process the process manager owns, and it may not
+install through a system package manager.
+
+If it restores the environment, QA re-runs the blocked items for real. If it
+does not but names a mechanism nobody has tried, the sprint **rolls**: the
+ticket is carried to a backlog entry, sprint N+1 opens in the same session, and
+ops gets a second attempt followed by another QA re-run. Two rolls per session,
+and three independent stops, so it is a loop rather than a busy loop.
+
+Only when the lane is exhausted does the escalation fire, and it ends
+`Decision required from the user: none. This is a report; the ticket stays
+carried.` You get the blocker, one line per attempt, the mechanisms exhausted,
+the unverified count and the single command that would clear it. The closing
+line ends `Work delivered: yes · Verification: blocked (escalated)`.
+
+The backlog holds two kinds and no third: `restore-verification` and
+`carried-condition`. Everything else the ceremony thinks of is rendered under
+*Proposed backlog (not filed)* and written nowhere.
 
 ## Known limitations (observed in dogfooding)
 
-Twelve, plus one that is not a limitation. They were raised in retrospective
+Thirteen, plus one that is not a limitation. They were raised in retrospective
 and converted into action items (owner: unassigned, due: next sprint).
 
 - The eight acts are not guaranteed on smaller models. Around a ceremony command
@@ -223,15 +253,23 @@ and converted into action items (owner: unassigned, due: next sprint).
   served-artifact check starts the project's own command under `timeout`, so the
   command itself ends by itself; a start script that spawns background children
   can leave those behind. No leak was observed in the most recent round.
-- Where `implementation.diff` cannot be produced, the reviewers withhold. The
-  file is written from two git tree snapshots, so a directory that is not a git
-  repository has none, and neither does a change whose target is gitignored —
-  `node_modules/` under an explicit ignore rule, for instance. The measured
-  counts then read `0 files, +0 −0` and the Reviewer and the Change Advisory
-  Board return `NOTHING-TO-REVIEW` and withhold, even though the ledger still
-  records the implementation entries naming every file the engineer wrote. The
-  work happens and is recorded; the sign-off is what is missing. The failure
-  direction is withhold, never approve.
+- Where `implementation.diff` cannot be produced, the measurement is missing and
+  the counts read zero. The file is written from two git tree snapshots, so a
+  directory that is not a git repository has none, and neither does a change
+  whose target is gitignored — `node_modules/` under an explicit ignore rule,
+  for instance. The ledger still records the implementation entries naming every
+  file the engineer wrote, so v2.3 sends the Reviewer to those files instead of
+  to the diff and `REV-NOTHING-TO-REVIEW` now requires zero implementation
+  entries. The Change Advisory Board still withholds and the counts still have
+  nothing behind them. The failure direction is withhold, never approve.
+- The ceremony can leave a dev server running. The DevOps Engineer starts things
+  through the project's own mechanisms and never stops them, because the process
+  manager owns those processes. Whatever it started is named on its
+  `CEREMONY-OPS-STARTED` line and repeated in act 6a, so the disclosure is on the
+  page — but the process is yours to stop.
+- The backlog does not survive a fresh clone. `.ceremony/.gitignore` is `*`, so
+  `backlog.jsonl` is local. That is the right default for a private record and
+  the wrong one for a team; delete the ignore file to share carry-over.
 - The Change Advisory Board has never rejected anything. This is not a
   limitation.
 
@@ -243,6 +281,11 @@ once answered its own finding by raising a ticket, convening seven agents and
 writing a 213-line file into the repository, and never produced the audit. When
 a report identifies work worth doing it says so and stops; the work is then
 asked for in a plain request, which runs the standard path.
+
+Closed by v2.3.0: a ceremony that hit a missing toolchain in QA and ended by
+asking the user to install it. The ops lane sits first, the sprint loop gives an
+untried mechanism a second attempt inside the same session, and the last line of
+the escalation is now fixed at `Decision required from the user: none.`
 
 `.ceremony/` appears the first time a turn changes a file. It ignores itself,
 arms nothing on its own, and `/ceremony:disband` removes the ticket records

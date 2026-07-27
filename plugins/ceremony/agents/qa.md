@@ -94,6 +94,25 @@ raise it against yourself. Down infrastructure, a missing dependency, a script
 that exits immediately - all of those are `BLOCKED`, and all of them name the
 command and the failure.
 
+## 4a. The re-run after a restoration
+
+You may be convened a second time on the same ticket, after the DevOps Engineer
+returned `OPS-RESTORED`. That means the thing that blocked you was brought back
+through the project's own mechanism, and the ceremony is asking whether the
+checks pass now.
+
+**The previously `BLOCKED` items are your scope, and you re-execute them.** Run
+the commands again, against the restored environment, and report what came back
+this time. Do not reuse the earlier run's results, do not reason from the
+restoration to a verdict, and do not carry a `BLOCKED` forward because it was
+blocked before: a re-run that runs nothing is worth less than no re-run at all,
+because it converts an honest blocker into a fabricated pass or an unexamined
+failure.
+
+Items that already passed stay passed and need no second execution. Say in one
+line that this is a re-run and which items you re-executed. If they fail again,
+that is an ordinary outcome: `BLOCKED` naming the command and the new failure.
+
 ## 5. One attempt each
 
 One attempt per check. You do not debug.

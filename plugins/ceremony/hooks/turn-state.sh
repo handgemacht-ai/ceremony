@@ -109,10 +109,30 @@ TODAY=$(d_from_civil "$Y" "$M" "$D")
 SPRINT_EPOCH=$(d_from_civil 2016 1 4)
 DAYS=$((TODAY - SPRINT_EPOCH))
 [ "$DAYS" -lt 0 ] && DAYS=0
-SPRINT=$((DAYS / 14 + 1))
+CALSPRINT=$((DAYS / 14 + 1))
 SDAY=$((DAYS % 14 + 1))
-S_START=$(civil_from_d $((SPRINT_EPOCH + 14 * (SPRINT - 1))))
-S_END=$(civil_from_d $((SPRINT_EPOCH + 14 * (SPRINT - 1) + 13)))
+S_START=$(civil_from_d $((SPRINT_EPOCH + 14 * (CALSPRINT - 1))))
+S_END=$(civil_from_d $((SPRINT_EPOCH + 14 * (CALSPRINT - 1) + 13)))
+
+# --- ceremony time --------------------------------------------------------
+# Sprints roll when a blocker is carried, and they roll immediately: "next
+# sprint" is the next iteration of the loop, not a fortnight away. The offset
+# is read here and incremented nowhere in this hook - the ledger writes it,
+# once, when a roll actually happens.
+#
+# It is project-scoped on purpose. A session-scoped offset would let one
+# session roll to 277 while a second session, opened alongside it, went on
+# minting CER-276-… ids that sit behind ids already on disk. A sprint number
+# never goes backwards in a project.
+#
+# This read sits below the synthetic-prompt guard above, so a finished
+# background agent or a system notification cannot mint a sprint or a ticket.
+OFFSET=0
+if [ -f "$CWD/.ceremony/sprint-offset" ]; then
+  OFFSET=$(cat "$CWD/.ceremony/sprint-offset" 2>/dev/null) || OFFSET=0
+  case "$OFFSET" in ''|*[!0-9]*) OFFSET=0 ;; esac
+fi
+SPRINT=$((CALSPRINT + OFFSET))
 
 DOW=$(((TODAY % 7 + 7 + 4) % 7))
 case "$DOW" in
@@ -169,6 +189,8 @@ fi
 {
   printf 'CEREMONY_TICKET=%s\n' "$TICKET"
   printf 'CEREMONY_SPRINT=%s\n' "$SPRINT"
+  printf 'CEREMONY_SPRINT_CALENDAR=%s\n' "$CALSPRINT"
+  printf 'CEREMONY_SPRINT_OFFSET=%s\n' "$OFFSET"
   printf 'CEREMONY_SPRINT_DAY=%s\n' "$SDAY"
   printf 'CEREMONY_CHG=%s\n' "$CHG"
   printf 'CEREMONY_NOW=%s\n' "$WD $ISO_DATE $CLOCK"
@@ -295,7 +317,7 @@ fi
 # ticket. Act 7 is assembled from this and nothing else, so it is handed over
 # already assembled rather than left to be reconstructed.
 STATE=''
-for r in team-member product-owner architect engineer reviewer change-advisory-board qa steering-committee; do
+for r in team-member product-owner architect engineer reviewer change-advisory-board qa devops steering-committee; do
   v=''
   [ -f "$LEDGER" ] && v=$(grep '"role":"'"$r"'"' "$LEDGER" 2>/dev/null | sed -n 's/.*"verdict":"\([^"]*\)".*/\1/p' | tail -n 1)
   [ -n "$v" ] || v='not convened'
@@ -318,6 +340,26 @@ if [ -f "$LEDGER" ]; then
   case "$IMPLF" in ''|*[!0-9]*) IMPLF=0 ;; esac
   case "$IMPLA" in ''|*[!0-9]*) IMPLA=0 ;; esac
   case "$IMPLR" in ''|*[!0-9]*) IMPLR=0 ;; esac
+fi
+
+# --- the backlog ------------------------------------------------------------
+# Carried tickets outlive the session that opened them. The list is injected so
+# that planning picks them up without being asked to go looking, and so that a
+# turn that quotes a CER-BL- id is quoting something that exists.
+BLFILE="$CWD/.ceremony/backlog.jsonl"
+BLN=0
+BLLIST=''
+if [ -f "$BLFILE" ]; then
+  BLN=$(grep -c '"status":"open"' "$BLFILE" 2>/dev/null) || BLN=0
+  case "$BLN" in ''|*[!0-9]*) BLN=0 ;; esac
+  BLLIST=$(grep '"status":"open"' "$BLFILE" 2>/dev/null |
+    sed -n 's/.*"id":"\([^"]*\)".*"kind":"\([^"]*\)".*/\1 (\2)/p' |
+    tr '\n' '@' | sed 's/@$//; s/@/, /g')
+fi
+if [ "$BLN" -eq 0 ]; then
+  BLLINE='0 open. Nothing has been carried, so sprint planning has no carry-over from the ceremony and act 8 proposes rather than files.'
+else
+  BLLINE=$(printf '%s open \302\267 %s \302\267 the ids are real and may be quoted; the file is .ceremony/backlog.jsonl' "$BLN" "$BLLIST")
 fi
 
 ENFORCE=on
@@ -343,7 +385,11 @@ printf '%s\n' "$HDRLINE" > "$SDIR/$SID.header" 2>/dev/null || true
   printf 'CEREMONY TURN STATE (machine-derived - copy these values verbatim; do not recompute)\n'
   printf 'now: %s %s %s\n' "$WD" "$ISO_DATE" "$CLOCK"
   printf 'sprint: %s \302\267 day %s of 14 \302\267 %s \342\206\222 %s\n' "$SPRINT" "$SDAY" "$S_START" "$S_END"
+  if [ "$OFFSET" -gt 0 ]; then
+    printf 'sprint-offset: calendar sprint %s + %s carried \342\206\222 effective sprint %s. The effective number is the one the header, the ticket id and every act use. The offset is on disk at .ceremony/sprint-offset and it was incremented by the plugin, not by you.\n' "$CALSPRINT" "$OFFSET" "$SPRINT"
+  fi
   printf 'ticket: %s \302\267 change: %s\n' "$TICKET" "$CHG"
+  printf 'backlog: %s\n' "$BLLINE"
   printf 'freeze: %s\n' "$FREEZE"
   printf 'ledger: .ceremony/%s/ledger.jsonl - %s entries, %s\n' "$TICKET" "$COUNT" "$ROLES"
   printf 'roles: '
@@ -359,17 +405,19 @@ printf '%s\n' "$HDRLINE" > "$SDIR/$SID.header" 2>/dev/null || true
   printf 'order: acts are rendered 1,2,3,4,5,6,7,8 whatever order the work happened in - the board really does sit after the edit and is still written as act 4. Each number once, none skipped. Act 5a, the conformance review, is written inside act 5 after the implementation.\n'
   printf 'writer: you do not edit. ceremony:engineer is the only role with write access and it makes every change. Its brief is two lines and no more: the ticket path, and the user request quoted verbatim. Do not restate the acceptance criteria to it - it reads them off the record, which is what makes the review meaningful.\n'
   printf 'chair-review: after the engineer returns and before you write act 5, run git diff and git status --porcelain and read them. Act 5 is written from the diff you read, not from the engineer summary alone, and the sign-off gate checks that the reading happened.\n'
-  printf 'waves: A = ceremony:team-member + ceremony:product-owner in one message \302\267 B = ceremony:architect on 5, 8 or 13 points \302\267 C = ceremony:engineer alone \302\267 then you read the diff \302\267 D = ceremony:reviewer + ceremony:change-advisory-board + ceremony:qa in one message.\n'
+  printf 'waves: A = ceremony:team-member + ceremony:product-owner in one message \302\267 B = ceremony:architect on 5, 8 or 13 points \302\267 C = ceremony:engineer alone \302\267 then you read the diff \302\267 D = ceremony:reviewer + ceremony:change-advisory-board + ceremony:qa in one message \302\267 E = ceremony:devops, only when QA came back with a BLOCKED check \302\267 F = ceremony:qa again, only after OPS-RESTORED.\n'
   printf 'commit: the ceremony never commits, stages, pushes or merges. The working tree is the artifact under review and a commit destroys it. git commit, git add, git push, git merge and git rebase are refused at the tool level on an armed turn, for you and for every agent alike. The closing line ends "Committed: no (the tree is yours)" on the standard path.\n'
   if [ "$CMDTURN" = yes ]; then
     printf 'command: this turn is the ceremony command %s. A command reports; it does not perform work. No file may be edited on this turn by anyone, ceremony:engineer is not convenable, and no ticket is raised for work nobody asked for. Render the command file and stop. If work is wanted, it comes as a plain request in its own turn.\n' "${CMDNAME:-/ceremony:*}"
   else
     printf 'command: this turn is a plain request, not a ceremony command. The full path applies.\n'
   fi
-  printf 'artifacts: the closing line counts acts, not sections. The standard path has 8 acts and prints "Ceremony artifacts: 8"; act 5a is part of act 5 and is not counted again.\n'
+  printf 'artifacts: the closing line counts acts, not sections. The standard path has 8 acts and prints "Ceremony artifacts: 8"; act 5a is part of act 5 and act 6a is part of act 6, and neither is counted again. There is no ninth act and the count never changes.\n'
   printf 'conditions: every CEREMONY-CONDITION line the board returns gets one Disposition line in act 4, numbered to match: applied - <what was done>, waived - <reason>, or carried - action item recorded (owner - due). Applying one means convening ceremony:engineer again, and then ceremony:qa on the code as it now stands.\n'
-  printf 'escalation: if any CEREMONY-DOD line is BLOCKED, emit the escalation block between act 8 and the closing line - one bullet per blocked item quoting the exact command QA ran, then "Decision required from the user:" - and end the closing line with "Verification: blocked (escalated)". Report the blocker; never debug it. With nothing blocked, emit no escalation block.\n'
-  printf 'sign-off: act 7 quotes only tokens agents actually returned this turn - ticked or withheld alike. A role that did not run gets exactly "withheld (role not convened)". One parenthesis per line, no clock times anywhere in act 7. The Product Owner line is ticked only when PO-ACCEPT and REV-MATCHES-CRITERIA are both on the ledger.\n'
+  printf 'ops: a BLOCKED check belongs to this ceremony before it belongs to the user. If any CEREMONY-DOD line is BLOCKED, convene ceremony:devops - it works only through the mechanisms the repository itself defines, it has no write tools and it may not kill anything - and render its return as act 6a \302\267 RESTORATION inside act 6. On OPS-RESTORED convene ceremony:qa again so the blocked checks really run: what the ops agent reports is a claim until QA re-runs it. Escalating to the user without convening ceremony:devops first is refused by the sign-off gate.\n'
+  printf 'loop: on OPS-BLOCKED or OPS-NEEDS-CHANGE with CEREMONY-OPS-NEXT naming a mechanism nobody has tried, the plugin rolls the sprint - it increments .ceremony/sprint-offset itself and hands you the new number on the next turn. Render the sprint-roll block and run the narrow next-sprint cycle: ops attempt 2, then QA. Not eight more acts. With CEREMONY-OPS-NEXT: none there is no roll and the loop is over. Either way an OPS-BLOCKED verdict carries the blocker to the backlog and the id is handed to you; name it in the escalation and in act 8.\n'
+  printf 'escalation: after the ops lane has been exhausted and only then, emit the final-resort escalation between act 8 and the closing line - the blocker, the diagnosis with one line per attempt, the mechanisms exhausted, the unverified count, the single command from CEREMONY-OPS-COMMAND, the backlog id when the plugin minted one, and the closing line "Decision required from the user: none." That last line is fixed: this ceremony reports, it does not hand the user homework. End the closing line with "Verification: blocked (escalated)". With nothing blocked, emit no escalation block.\n'
+  printf 'sign-off: act 7 quotes only tokens agents actually returned this turn - ticked or withheld alike. It is ten lines and the same ten every turn, with DevOps Engineer between QA Sign-off Officer and Release Manager. A role that did not run gets exactly "withheld (role not convened)". One parenthesis per line, no clock times anywhere in act 7. The Product Owner line is ticked only when PO-ACCEPT and REV-MATCHES-CRITERIA are both on the ledger. No OPS- token ever carries a tick: ops restores, it does not approve.\n'
   printf 'agents: every ceremony:* Agent call is issued with run_in_background false. An act heading may name a ceremony:* agent only if that agent ran this turn, and only a real PO-CLARIFY on the ledger stops a turn for a question.\n'
   printf 'blocks: if a hook sends this turn back, apply the correction it names and re-render from the ledger - convene nobody again unless the correction names an agent. Finish the ceremony and deliver the work in the same turn. A turn is corrected at most twice; after that it ships as written.\n'
 } > "$SBLK" 2>/dev/null

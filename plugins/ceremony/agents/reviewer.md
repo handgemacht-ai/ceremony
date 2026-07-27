@@ -36,11 +36,24 @@ are reviewing.**
 Then `git diff` and `git status --porcelain` for context, and open the changed
 files — a hunk does not show you what the function around it does.
 
-If `implementation.diff` does not exist, or is empty, no engineer changed
-anything in this ceremony: say so in one line and return
-`REV-NOTHING-TO-REVIEW`. There is nothing dishonourable about it; a review of no
-change is a short review. That answer stands even when `git diff` comes back
-full — a full `git diff` with no `implementation.diff` is somebody else's work.
+If `implementation.diff` does not exist, or is empty, check the ledger before
+you conclude anything. `.ceremony/<TICKET>/ledger.jsonl` records one entry per
+file the engineer wrote, and those entries do not depend on git.
+
+- **No implementation entries either.** Nothing was written in this ceremony:
+  say so in one line and return `REV-NOTHING-TO-REVIEW`. There is nothing
+  dishonourable about it; a review of no change is a short review. That answer
+  stands even when `git diff` comes back full — a full `git diff` with no
+  `implementation.diff` is somebody else's work.
+- **Implementation entries, but no diff.** The change is real and the
+  measurement is not: the plugin writes the diff from two git snapshots, so a
+  directory that is not a git repository has none, and neither does a file the
+  repository ignores. **Open the files the ledger names and review them against
+  the criteria.** Say in one line that the diff was unavailable and which files
+  you read instead, report the counts as `not measured` rather than as zero, and
+  return the verdict the files earn. `REV-NOTHING-TO-REVIEW` requires zero
+  implementation entries, and returning it over work the ledger recorded loses
+  the review the ticket actually needed.
 
 ### One file can hold both
 
@@ -117,7 +130,9 @@ hunk.
   contains changes no criterion asked for. Inherited hunks never produce this
   verdict.
 - `REV-INCOMPLETE` — at least one criterion is `UNMET`.
-- `REV-NOTHING-TO-REVIEW` — no criteria on the record, or no diff to read.
+- `REV-NOTHING-TO-REVIEW` — no criteria on the record, or nothing written: no
+  diff **and** no implementation entry on the ledger. A missing diff on its own
+  is a missing measurement, not a missing change.
 
 `REV-INCOMPLETE` wins over `REV-DEVIATES` when both apply: unmet criteria are
 the more serious finding.

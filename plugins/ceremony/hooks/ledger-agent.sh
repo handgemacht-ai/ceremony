@@ -37,6 +37,15 @@ int() {
   case "${1:-}" in ''|*[!0-9]*) printf '0' ;; *) printf '%s' "$1" ;; esac
 }
 
+# A value taken out of an agent's prose and put into JSON. Quotes, backslashes
+# and control characters are removed rather than escaped: the field is a label
+# for a human to read, and a record that will not parse is worse than a label
+# that lost a character.
+jstr() {
+  printf '%s' "${1:-}" | tr -d '\\"' | tr '\n\r\t' '   ' | cut -c1-160 |
+    sed 's/[ ]*$//'
+}
+
 AGENT=$(jget subagent_type)
 case "$AGENT" in
   ceremony:*) ROLE=${AGENT#ceremony:} ;;
@@ -117,6 +126,7 @@ case "$ROLE" in
   engineer)               SET='ENG-IMPLEMENTED ENG-BLOCKED ENG-NO-CHANGE'; ACT='5 \302\267 IMPLEMENTATION' ;;
   reviewer)               SET='REV-MATCHES-CRITERIA REV-DEVIATES REV-INCOMPLETE REV-NOTHING-TO-REVIEW'; ACT='5a \302\267 CONFORMANCE REVIEW' ;;
   qa)                     SET='QA-PASS QA-PARTIAL QA-FAIL QA-BLOCKED'; ACT='6 \302\267 DEFINITION OF DONE' ;;
+  devops)                 SET='OPS-RESTORED OPS-BLOCKED OPS-NEEDS-CHANGE OPS-NOTHING-TO-DO'; ACT='6a \302\267 RESTORATION' ;;
   steering-committee)     SET='SC-ALIGNED-WITH-RESERVATIONS'; ACT='- \302\267 STEERING COMMITTEE' ;;
   *)                      SET=''; ACT='- \302\267 UNRECOGNISED ROLE' ;;
 esac
@@ -140,6 +150,7 @@ stat_of() { printf '%s' "$STATS" | sed -n 's/.*"'"$1"'":\([0-9][0-9]*\).*/\1/p' 
 EDITS=$(int "$(stat_of editFileCount)")
 SADDED=$(int "$(stat_of linesAdded)")
 SREMOVED=$(int "$(stat_of linesRemoved)")
+BASHC=$(int "$(stat_of bashCount)")
 
 # --- the diff, measured -----------------------------------------------------
 # toolStats counts the lines every edit call touched. That is a record of
@@ -203,7 +214,7 @@ ROOT="$CWD/.ceremony"
 DIR="$ROOT/$TICKET"
 mkdir -p "$DIR/evidence" 2>/dev/null || { rm -f "$TMPIN"; exit 0; }
 [ -f "$ROOT/.gitignore" ] || printf '*\n' > "$ROOT/.gitignore" 2>/dev/null || true
-[ -f "$ROOT/config.json" ] || printf '{"version":"2.2.2","enforce":"on"}\n' > "$ROOT/config.json" 2>/dev/null || true
+[ -f "$ROOT/config.json" ] || printf '{"version":"2.3.0","enforce":"on"}\n' > "$ROOT/config.json" 2>/dev/null || true
 
 N=$(ls "$DIR/evidence" 2>/dev/null | wc -l | tr -d ' ')
 case "$N" in ''|*[!0-9]*) N=0 ;; esac
@@ -264,6 +275,42 @@ CRIT=$(int "$CRIT"); UNMET=$(int "$UNMET"); EXTRA=$(int "$EXTRA")
 CRIT=$((CRIT - EXTRA))
 [ "$CRIT" -lt 0 ] && CRIT=0
 
+# --- the ops lane's own machine lines ---------------------------------------
+# Three of them carry weight beyond the record. NEXT decides whether the sprint
+# rolls, COMMAND is the one command the final escalation quotes to the user, and
+# STARTED discloses what was left running. They are read here, once, from the
+# agent's own words, and everything downstream reads the ledger instead.
+XTRA=''
+if [ "$ROLE" = devops ]; then
+  OTRIED=$(printf '%s' "$BODY" | grep -c '^CEREMONY-OPS-TRIED: ' 2>/dev/null) || OTRIED=0
+  OTRIED=$(int "$OTRIED")
+  OMECH=$(jstr "$(printf '%s' "$BODY" | sed -n 's/^CEREMONY-OPS-MECHANISM: //p' | tail -n 1)")
+  ONEXT=$(jstr "$(printf '%s' "$BODY" | sed -n 's/^CEREMONY-OPS-NEXT: //p' | tail -n 1)")
+  OSTART=$(jstr "$(printf '%s' "$BODY" | sed -n 's/^CEREMONY-OPS-STARTED: //p' | tail -n 1)")
+  OCMD=$(jstr "$(printf '%s' "$BODY" | sed -n 's/^CEREMONY-OPS-COMMAND: //p' | tail -n 1)")
+  [ -n "$OMECH" ] || OMECH=none
+  [ -n "$ONEXT" ] || ONEXT=none
+  [ -n "$OSTART" ] || OSTART=none
+  [ -n "$OCMD" ] || OCMD=none
+  XTRA=$(printf ',"tried":%s,"mechanism":"%s","next":"%s","started":"%s","command":"%s"' \
+    "$OTRIED" "$OMECH" "$ONEXT" "$OSTART" "$OCMD")
+fi
+
+# --- which attempt this is, and whether it ran anything ---------------------
+# A QA re-run that re-runs nothing is the cheapest way to fake convergence, and
+# it is the one the sign-off gate has to be able to catch. The attempt number
+# comes from the record rather than from the agent, and bashCount comes from the
+# platform's own tool statistics.
+if [ "$ROLE" = qa ]; then
+  ATT=0
+  if [ -f "$DIR/ledger.jsonl" ]; then
+    ATT=$(grep '"role":"qa"' "$DIR/ledger.jsonl" 2>/dev/null | grep -c '"session":"'"$SID"'"' 2>/dev/null) || ATT=0
+  fi
+  ATT=$(int "$ATT")
+  ATT=$((ATT + 1))
+  XTRA=$(printf ',"attempt":%s,"bash":%s' "$ATT" "$BASHC")
+fi
+
 # --- the commit screen ------------------------------------------------------
 # This ceremony never commits: the working tree is the artifact the last three
 # eyes review, and a commit destroys it. So a criterion that demands one cannot
@@ -296,10 +343,10 @@ if [ "$ROLE" = engineer ] && [ "$MEASURED" = git ]; then
   fi
 fi
 
-printf '{"ts":"%s","session":"%s","ticket":"%s","role":"%s","agent_type":"%s","agent_id":"%s","status":"%s","verdict":"%s","ac":%s,"conditions":%s,"blocked":%s,"crit":%s,"unmet":%s,"extra":%s,"edits":%s,"added":%s,"removed":%s,"measured":"%s","stat_added":%s,"stat_removed":%s,"diff_mismatch":%s,"evidence":"%s"}\n' \
+printf '{"ts":"%s","session":"%s","ticket":"%s","role":"%s","agent_type":"%s","agent_id":"%s","status":"%s","verdict":"%s","ac":%s,"conditions":%s,"blocked":%s,"crit":%s,"unmet":%s,"extra":%s,"edits":%s,"added":%s,"removed":%s,"measured":"%s","stat_added":%s,"stat_removed":%s,"diff_mismatch":%s%s,"evidence":"%s"}\n' \
   "$TS" "$SID" "$TICKET" "$ROLE" "$AGENT" "$AGENTID" "$STATUS" "$TOKEN" \
   "$AC" "$COND" "$BLOCKED" "$CRIT" "$UNMET" "$EXTRA" "$EDITS" "$ADDED" "$REMOVED" \
-  "$MEASURED" "$SADDED" "$SREMOVED" "$MISMATCH" "$EV" >> "$LED" 2>/dev/null || true
+  "$MEASURED" "$SADDED" "$SREMOVED" "$MISMATCH" "$XTRA" "$EV" >> "$LED" 2>/dev/null || true
 
 # --- the implementation entry, from what the engineer actually did ----------
 # Written from the platform's own measurement rather than the engineer's
@@ -338,8 +385,96 @@ if [ "$ROLE" = engineer ]; then
       FILES=$(int "$FILES")
       [ "$FILES" -eq 0 ] && FILES=$EDITS
     fi
-    printf '{"ts":"%s","session":"%s","ticket":"%s","role":"implementation","by":"engineer","agent_id":"%s","via":"agent","measured":"%s","files":%s,"added":%s,"removed":%s,"edits":%s}\n' \
-      "$TS" "$SID" "$TICKET" "$AGENTID" "$MEASURED" "$FILES" "$ADDED" "$REMOVED" "$EDITS" >> "$LED" 2>/dev/null || true
+    # Whether implementation.diff exists for this entry, and therefore whether
+    # "no diff to read" means nothing happened or means the measurement was not
+    # available. A non-git directory and a gitignored target both produce the
+    # second, and a reviewer that cannot tell them apart returns
+    # NOTHING-TO-REVIEW on work that was really done.
+    DMEAS=false
+    [ -s "$DIR/implementation.diff" ] && DMEAS=true
+    printf '{"ts":"%s","session":"%s","ticket":"%s","role":"implementation","by":"engineer","agent_id":"%s","via":"agent","measured":"%s","diff_measured":%s,"files":%s,"added":%s,"removed":%s,"edits":%s}\n' \
+      "$TS" "$SID" "$TICKET" "$AGENTID" "$MEASURED" "$DMEAS" "$FILES" "$ADDED" "$REMOVED" "$EDITS" >> "$LED" 2>/dev/null || true
+  fi
+fi
+
+# --- the sprint roll --------------------------------------------------------
+# The loop advances only on a mechanism nobody has tried. Three independent
+# stops, none of them a judgement call: CEREMONY-OPS-NEXT: none ends it, a
+# mechanism already on a CEREMONY-OPS-TRIED line does not count as next, a
+# second OPS-BLOCKED ends it whatever it claims, and the session caps at two
+# rolls. The offset is project-scoped because a session-scoped one would let a
+# second session mint ticket ids behind the ones already on disk.
+if [ "$ROLE" = devops ]; then
+  case "$TOKEN" in
+    OPS-BLOCKED|OPS-NEEDS-CHANGE) ROLL=maybe ;;
+    *) ROLL=no ;;
+  esac
+
+  # A second blocked restoration is the end of the loop, whatever it names next.
+  if [ "$ROLL" = maybe ]; then
+    PRIORBLK=$(grep '"role":"devops"' "$LED" 2>/dev/null | grep -c '"verdict":"OPS-BLOCKED"' 2>/dev/null) || PRIORBLK=0
+    PRIORBLK=$(int "$PRIORBLK")
+    [ "$PRIORBLK" -gt 1 ] && ROLL=no
+  fi
+
+  # "next" has to be a mechanism, and one nobody has tried on this ticket.
+  if [ "$ROLL" = maybe ]; then
+    case "$ONEXT" in
+      ''|none|None|NONE|-) ROLL=no ;;
+      *)
+        if printf '%s' "$BODY" | sed -n 's/^CEREMONY-OPS-TRIED: //p' |
+             grep -qF "$ONEXT" 2>/dev/null; then
+          ROLL=no
+        elif grep '"role":"devops"' "$LED" 2>/dev/null |
+             grep -qF "\"mechanism\":\"$ONEXT\"" 2>/dev/null; then
+          ROLL=no
+        fi
+        ;;
+    esac
+  fi
+
+  ROLLS=$(cat "$DATA/sessions/$SID.rolls" 2>/dev/null) || ROLLS=0
+  ROLLS=$(int "$ROLLS")
+  [ "$ROLLS" -ge 2 ] && ROLL=no
+
+  # A blocker is carried whether or not the loop advances. The roll buys the
+  # ticket another attempt; the carry-over is what says it is still open, and a
+  # ceremony that reports "the ticket stays carried" with nothing on disk has
+  # carried nothing. So OPS-BLOCKED mints an entry on the terminal path too,
+  # once per ticket.
+  MINT=no
+  [ "$ROLL" = maybe ] && MINT=yes
+  if [ "$MINT" = no ] && [ "$TOKEN" = OPS-BLOCKED ]; then
+    grep -q '"kind":"restore-verification"' "$DIR/carry.jsonl" 2>/dev/null || MINT=yes
+  fi
+
+  if [ "$ROLL" = maybe ]; then
+    OFF=$(cat "$ROOT/sprint-offset" 2>/dev/null) || OFF=0
+    OFF=$(int "$OFF")
+    printf '%s\n' "$((OFF + 1))" > "$ROOT/sprint-offset" 2>/dev/null || true
+    printf '%s\n' "$((ROLLS + 1))" > "$DATA/sessions/$SID.rolls" 2>/dev/null || true
+    printf 'CEREMONY_ROLLED=yes\n' >> "$SENV" 2>/dev/null || true
+    printf 'CEREMONY_ROLLS=%s\n' "$((ROLLS + 1))" >> "$SENV" 2>/dev/null || true
+  fi
+
+  if [ "$MINT" = yes ]; then
+    # The next free backlog id, across what is filed and what is pending. The
+    # entry itself is written by the sign-off gate on the pass path, because
+    # the disposition of a condition is only known once the response exists.
+    NEXTID=$(cat "$ROOT/backlog.jsonl" "$ROOT"/*/carry.jsonl 2>/dev/null |
+      sed -n 's/.*"id":"CER-BL-\([0-9][0-9]*\)".*/\1/p' | sort -n | tail -n 1)
+    NEXTID=$(int "$NEXTID")
+    NEXTID=$((NEXTID + 1))
+    BLID=$(printf 'CER-BL-%04d' "$NEXTID")
+
+    SPRINT=$(sed -n 's/^CEREMONY_SPRINT=//p' "$SENV" 2>/dev/null | tail -n 1)
+    SPRINT=$(int "$SPRINT")
+    SUM=$(jstr "$(printf '%s' "$BODY" | sed -n 's/^CEREMONY-OPS-TRIED: //p' | head -n 1)")
+    [ -n "$SUM" ] || SUM="verification blocked; restoration attempted and incomplete"
+    printf '{"id":"%s","ts":"%s","kind":"restore-verification","opened_by":"%s","sprint_opened":%s,"summary":"%s","needs":"%s","command":"%s","owner":"DevOps Engineer","status":"open"}\n' \
+      "$BLID" "$TS" "$TICKET" "$SPRINT" "$SUM" "$ONEXT" "$OCMD" >> "$DIR/carry.jsonl" 2>/dev/null || true
+
+    printf 'CEREMONY_CARRIED=%s\n' "$BLID" >> "$SENV" 2>/dev/null || true
   fi
 fi
 

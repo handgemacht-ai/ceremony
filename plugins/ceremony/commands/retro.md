@@ -33,11 +33,32 @@ empty and say so.
 The withheld signatures are the most interesting line in the record. Say which
 ones were withheld and why the token says they were.
 
+## 2a. What was carried, and what the loop cost
+
+If any sprint rolled this session, say so plainly: which sprint closed, which
+opened, and that the number the header carries is the calendar sprint plus the
+offset on disk. A sprint that advanced because a ceremony could not verify its
+own work is the most honest thing in the record, and burying it is the one thing
+this section must not do.
+
+Then one line per carried ticket, quoted from `.ceremony/backlog.jsonl`:
+
+CER-BL-<nnnn> · <kind> · opened by <ticket> in sprint <n> · <status>
+
+The ids are real. If nothing rolled and nothing was carried, say that in one
+line — it is the ordinary outcome and it needs no explanation.
+
 ## 3. Action items
 
 Each one gets an owner from the ceremonial roles — Scrum Master, Product Owner,
-Architect, QA Sign-off Officer, Release Manager, Change Advisory Board Chair —
-and the due date "next sprint".
+Architect, QA Sign-off Officer, DevOps Engineer, Release Manager, Change
+Advisory Board Chair — and the due date "next sprint".
+
+**Action items are not backlog entries.** They are rendered here, under this
+heading, and written nowhere. Only two kinds ever reach the backlog —
+`restore-verification` and `carried-condition` — and a retrospective that files
+itself into the next sprint is a process widening its own scope, which is the
+failure mode the whole plugin is a joke about.
 
 ## 4. Team health check
 

@@ -160,6 +160,38 @@ if [ ! -f "$DATA/sessions/$SID.standalone" ]; then
   esac
 fi
 
+# --- the ops lane opens on a blocked check and on nothing else ---------------
+# ceremony:devops is Bash-capable and has standing motive to make things work.
+# It is convened for one reason: QA could not run a check. Without that on the
+# record it is a general-purpose shell with a role name on it, which is the one
+# thing this plugin cannot ship.
+if [ "$ROLE" = devops ]; then
+  QABLK=no
+  for b in $(printf '%s' "$MINE" | grep '"role":"qa"' 2>/dev/null | sed -n 's/.*"blocked":\([0-9][0-9]*\).*/\1/p'); do
+    [ "$b" -gt 0 ] && QABLK=yes
+  done
+  printf '%s' "$MINE" | grep '"role":"qa"' 2>/dev/null | grep -q '"verdict":"QA-BLOCKED"' 2>/dev/null && QABLK=yes
+  if [ "$QABLK" = no ]; then
+    deny "ceremony:devops is convened when verification is blocked, and nothing on $TICKET is blocked: the ledger holds no QA entry with a BLOCKED check on it.\\n\\nThe ops lane exists for one situation - QA ran a check and the environment was not there, so the check could not run at all. Convene ceremony:qa first. If QA comes back with BLOCKED lines, the ops lane opens and this call is allowed; if it comes back PASS, FAIL or PARTIAL, there is nothing to restore and the ticket goes to act 7 as it stands.\\n\\nA failing check is not a blocked one, and it is not the ops lane's business either: a test that runs and fails is a finding about the code, which is what act 6 is for.\\n\\nTo work without the ceremony: /ceremony:disband, or CEREMONY_ENFORCE=off, or /hooks."
+  fi
+fi
+
+# --- the loop is bounded, and the bound is a count ---------------------------
+# Two roles can legitimately be convened more than once on one ticket: QA, when
+# the code or the environment moved under it, and devops, on the second sprint
+# of a roll. Neither is unbounded. The caps are what stop a turn that keeps
+# trying from becoming a turn that never ends.
+case "$ROLE" in
+  qa|devops)
+    case "$ROLE" in qa) CAP=3 ;; *) CAP=2 ;; esac
+    SEEN=$(printf '%s' "$MINE" | grep -c '"role":"'"$ROLE"'"' 2>/dev/null) || SEEN=0
+    case "$SEEN" in ''|*[!0-9]*) SEEN=0 ;; esac
+    if [ "$SEEN" -ge "$CAP" ]; then
+      deny "$AGENT has been convened $SEEN time(s) on $TICKET and the cap for this role is $CAP. The loop advances on a mechanism nobody has tried; it does not advance by asking the same role again.\\n\\nRender what is already on the record. If verification is still blocked, that is the final-resort escalation: the diagnosis, the mechanisms that were exhausted, the one command that would clear it, and the closing line 'Decision required from the user: none.' The ticket stays carried in the backlog and the user is told, not asked.\\n\\nTo work without the ceremony: /ceremony:disband, or CEREMONY_ENFORCE=off, or /hooks."
+    fi
+    ;;
+esac
+
 if [ ! -f "$LEDGER" ]; then
   force_sync
   exit 0
@@ -194,9 +226,23 @@ fi
 
 # The record moved on: an implementation entry after this role's last entry
 # makes the old return stale, and re-convening is the point of the gate above.
+#
+# The code is not the only thing that can move. A restored toolchain moves the
+# environment, and a check that was BLOCKED because the environment was not
+# there is exactly as stale as a check that ran against an older diff. So an
+# OPS-RESTORED entry after this role's last entry re-opens it the same way an
+# implementation entry does - and that, not the ops agent's own word, is what
+# lets QA run the blocked checks again. The claim is only closed when QA does.
+MOVED=''
 LASTIMPL=$(grep '"role":"implementation"' "$LEDGER" 2>/dev/null | sed -n 's/.*"ts":"\([^"]*\)".*/\1/p' | sort | tail -n 1)
-if [ -n "$LASTIMPL" ] && [ -n "$PTS" ]; then
-  if [ "$LASTIMPL" \> "$PTS" ]; then
+[ -n "$LASTIMPL" ] && MOVED=$LASTIMPL
+LASTOPS=$(grep '"role":"devops"' "$LEDGER" 2>/dev/null | grep '"verdict":"OPS-RESTORED"' | sed -n 's/.*"ts":"\([^"]*\)".*/\1/p' | sort | tail -n 1)
+if [ -n "$LASTOPS" ]; then
+  [ -z "$MOVED" ] && MOVED=$LASTOPS
+  [ "$LASTOPS" \> "$MOVED" ] && MOVED=$LASTOPS
+fi
+if [ -n "$MOVED" ] && [ -n "$PTS" ]; then
+  if [ "$MOVED" \> "$PTS" ]; then
     force_sync
     exit 0
   fi
