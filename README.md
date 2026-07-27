@@ -350,14 +350,15 @@ converted into action items (owner: unassigned, due: next sprint).
   gate now refuses an act headed by an agent that never ran, which is how the
   invented clarification used to be dressed. A question asked in plain prose,
   with no act heading and no agent named, is not caught by anything.
-- **The prose is not checked; the tokens are.** The gates check the verdicts in
-  act 7, the marks in act 6 and the path the turn took. The sentences in acts 1,
-  2, 3, 4 and 8 — yesterday's board, the rejected alternative, the retrospective
-  action item — are composed by the model, and nothing verifies them. A checked
-  sign-off can sit under an invented standup. The same holds for the two v2.1
-  contracts: the gate counts that every condition has a disposition and that a
-  blocked check was escalated, but the *reason* in a waiver and the command
-  quoted in an escalation are prose. A `waived — not needed` passes the counter.
+- **The prose is not checked; the counts are.** The gates check the verdicts in
+  act 7, the marks in act 6, the number of dispositions in act 4 and the path
+  the turn took. The sentences in acts 1, 2, 3, 4 and 8 — yesterday's board,
+  the rejected alternative, the retrospective action item — are composed by the
+  model, and nothing verifies them. A checked sign-off can sit under an invented
+  standup. The same holds for the two v2.1 contracts: the gate counts that every
+  condition has a disposition and that a blocked check was escalated, but the
+  *reason* in a waiver and the command quoted in an escalation are prose. A
+  `waived — not needed` passes the counter.
 - **The write gate covers `Edit` and `Write`, not `Bash`.** A heredoc written
   through a shell command changes a file without passing the gate, so a
   determined turn can route around grooming. Bash is left ungated on purpose —
