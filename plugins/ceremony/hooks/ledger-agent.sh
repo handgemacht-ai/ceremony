@@ -147,8 +147,21 @@ SREMOVED=$(int "$(stat_of linesRemoved)")
 # a paragraph rewritten in three passes is counted three times. Acts 5 and 7
 # quote a diff, so the numbers on the record are a diff - taken against the
 # tree snapshot the subagent-start hook wrote before the engineer began.
+#
+# Ephemera are excluded from both trees. A test run leaves bytecode behind and
+# bytecode is not a change to the ticket; counted, it inflates the numbers this
+# measurement exists to get right. node_modules is deliberately not excluded: it
+# is ignored everywhere it appears, so it never reaches here, and it is the one
+# path where an exclusion could hide a change somebody meant to make. The
+# pathspec forms matter - :(exclude)**/__pycache__/** misses a root-level
+# __pycache__ on git 2.43, and *__pycache__/* does not.
+EPH1=':(exclude)*__pycache__/*'
+EPH2=':(exclude)*.pyc'
+EPH3=':(exclude)*.DS_Store'
+
 MEASURED=toolstats
 GFILES=0; GADDED=0; GREMOVED=0
+EBASE=''; ENOW=''
 if [ "$ROLE" = engineer ] && [ -n "$AGENTID" ]; then
   BASE=$(cat "$DATA/sessions/$SID.base.$AGENTID" 2>/dev/null) || BASE=''
   case "$BASE" in *[!0-9a-f]*) BASE='' ;; esac
@@ -158,7 +171,7 @@ if [ "$ROLE" = engineer ] && [ -n "$AGENTID" ]; then
     rm -f "$NIDX" 2>/dev/null || true
     NOW=''
     if GIT_INDEX_FILE="$NIDX" git -C "$CWD" read-tree --empty >/dev/null 2>&1 &&
-       GIT_INDEX_FILE="$NIDX" git -C "$CWD" add -A >/dev/null 2>&1; then
+       GIT_INDEX_FILE="$NIDX" git -C "$CWD" add -A -- "$EPH1" "$EPH2" "$EPH3" >/dev/null 2>&1; then
       NOW=$(GIT_INDEX_FILE="$NIDX" git -C "$CWD" write-tree 2>/dev/null)
     fi
     rm -f "$NIDX" 2>/dev/null || true
@@ -167,6 +180,7 @@ if [ "$ROLE" = engineer ] && [ -n "$AGENTID" ]; then
       NUMSTAT=$(git -C "$CWD" diff --numstat "$BASE" "$NOW" 2>/dev/null)
       if [ $? -eq 0 ]; then
         MEASURED=git
+        EBASE=$BASE; ENOW=$NOW
         set -- $(printf '%s\n' "$NUMSTAT" | awk '
           NF >= 3 { f++; if ($1 != "-") a += $1; if ($2 != "-") r += $2 }
           END { printf "%d %d %d", f + 0, a + 0, r + 0 }')
@@ -189,7 +203,7 @@ ROOT="$CWD/.ceremony"
 DIR="$ROOT/$TICKET"
 mkdir -p "$DIR/evidence" 2>/dev/null || { rm -f "$TMPIN"; exit 0; }
 [ -f "$ROOT/.gitignore" ] || printf '*\n' > "$ROOT/.gitignore" 2>/dev/null || true
-[ -f "$ROOT/config.json" ] || printf '{"version":"2.2.1","enforce":"on"}\n' > "$ROOT/config.json" 2>/dev/null || true
+[ -f "$ROOT/config.json" ] || printf '{"version":"2.2.2","enforce":"on"}\n' > "$ROOT/config.json" 2>/dev/null || true
 
 N=$(ls "$DIR/evidence" 2>/dev/null | wc -l | tr -d ' ')
 case "$N" in ''|*[!0-9]*) N=0 ;; esac
@@ -201,6 +215,25 @@ rm -f "$TMPIN"
 
 TS=$(date +%Y-%m-%dT%H:%M:%S%z 2>/dev/null) || TS=unknown
 LED="$DIR/ledger.jsonl"
+
+# --- the hunks this ticket's engineer produced ------------------------------
+# git diff over the working tree cannot separate what the engineer wrote from
+# what was already there, and a file that is both - dirty before the ticket and
+# edited during it - is where that bites: the reviewer reads somebody else's
+# hunks as changes nobody asked for, raises them as EXTRA, and the acceptance
+# is withheld over work this ceremony did not do. The two tree stamps do
+# separate them, so the diff between them is written out and the reviewing
+# roles read that instead of guessing.
+if [ -n "$EBASE" ] && [ -n "$ENOW" ] && [ "$EBASE" != "$ENOW" ]; then
+  {
+    printf '# %s \342\200\224 %s \342\200\224 the hunks ceremony:engineer produced\n' "$TICKET" "$TS"
+    printf '# Everything here was written during this ticket. Anything in git diff\n'
+    printf '# that is not here was already in the working tree and belongs to nobody\n'
+    printf '# in this ceremony.\n'
+    git -C "$CWD" diff "$EBASE" "$ENOW" 2>/dev/null
+    printf '\n'
+  } >> "$DIR/implementation.diff" 2>/dev/null || true
+fi
 
 # Counts the sign-off gate holds the turn to, taken here because this is where
 # the agent's own words are still in hand.
@@ -282,7 +315,7 @@ if [ "$ROLE" = engineer ]; then
   # does not exist.
   [ "$MEASURED" = git ] && [ "$GFILES" -eq 0 ] && MOVED=no
   if command -v git >/dev/null 2>&1 && git -C "$CWD" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    NOWTREE=$({ git -C "$CWD" status --porcelain 2>/dev/null; git -C "$CWD" diff --numstat HEAD 2>/dev/null; } | cksum 2>/dev/null | tr -d ' \t')
+    NOWTREE=$({ git -C "$CWD" status --porcelain -- "$EPH1" "$EPH2" "$EPH3" 2>/dev/null; git -C "$CWD" diff --numstat HEAD -- "$EPH1" "$EPH2" "$EPH3" 2>/dev/null; } | cksum 2>/dev/null | tr -d ' \t')
     PREVTREE=$(cat "$DATA/sessions/$SID.tree" 2>/dev/null) || PREVTREE=''
     [ -n "$NOWTREE" ] && [ -n "$PREVTREE" ] && [ "$NOWTREE" != "$PREVTREE" ] && MOVED=yes
     [ -n "$NOWTREE" ] && printf '%s\n' "$NOWTREE" > "$DATA/sessions/$SID.tree" 2>/dev/null || true

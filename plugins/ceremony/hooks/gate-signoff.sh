@@ -1,9 +1,9 @@
 #!/bin/sh
 # ceremony :: Stop
-# Twenty-three rules. M and V come first and are outside the correction budget:
+# Twenty-four rules. M and V come first and are outside the correction budget:
 # the chair editing and a commit are the two failures worth their own allowance.
 # Then A to L, in order, the first one tripped sending the turn back. Then N to
-# W, the chain of four eyes, reported together in one message.
+# X, the chain of four eyes, reported together in one message.
 # A turn gets at most two ordinary corrections plus at most two exempt ones.
 set -u
 trap 'exit 0' EXIT
@@ -312,7 +312,7 @@ elif [ "$HASESC" = yes ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Rules N to W: the four eyes.
+# Rules N to X: the four eyes.
 #
 # These are checked together and reported together. Nine separate corrections
 # against a budget of two would mean seven of them never being seen, so what
@@ -468,6 +468,44 @@ if [ "$LCP" = no ] && printf '%s' "$MSG" | grep -q 'SIGN-OFF' 2>/dev/null; then
   fi
 fi
 
+# --- X: the Engineer line says what the Engineer's verdict says -------------
+# Three shapes, one per verdict, and they are not interchangeable. A line
+# reading "implemented (ENG-BLOCKED) - 1 file, +1 -1" says two opposite things
+# at once, and the one a reader believes is the first half. Observed on a
+# standalone /ceremony:signoff, where the render was assembled from the ledger's
+# numbers and the wrong sentence around them.
+ENGLINE=$(printf '%s' "$ACT7" | grep '^Engineer' 2>/dev/null | head -n 1)
+if [ -n "$ENGLINE" ]; then
+  SHAPE=''
+  case "$ENGLINE" in
+    *'not implemented'*)       SHAPE='not implemented' ;;
+    *'nothing to implement'*)  SHAPE='nothing to implement' ;;
+    *implemented*)             SHAPE=implemented ;;
+  esac
+  ETOK=''
+  case "$ENGLINE" in
+    *ENG-IMPLEMENTED*) ETOK=ENG-IMPLEMENTED ;;
+    *ENG-BLOCKED*)     ETOK=ENG-BLOCKED ;;
+    *ENG-NO-CHANGE*)   ETOK=ENG-NO-CHANGE ;;
+  esac
+  WANT=''
+  case "$ETOK" in
+    ENG-IMPLEMENTED) WANT=implemented ;;
+    ENG-BLOCKED)     WANT='not implemented' ;;
+    ENG-NO-CHANGE)   WANT='nothing to implement' ;;
+  esac
+  if [ -n "$ETOK" ] && [ -n "$SHAPE" ] && [ "$SHAPE" != "$WANT" ]; then
+    note "X \\u00b7 The Engineer line reads \\\"$SHAPE\\\" and quotes $ETOK, and those are two different outcomes. The line is one of exactly three, and the verdict picks which:\\n\\n  Engineer \\u2014 implemented (ENG-IMPLEMENTED, ceremony:engineer) \\u00b7 <n> files, +<a> \\u2212<r>\\n  Engineer \\u2014 not implemented (ENG-BLOCKED, ceremony:engineer) \\u00b7 0 files\\n  Engineer \\u2014 nothing to implement (ENG-NO-CHANGE, ceremony:engineer) \\u00b7 0 files\\n\\n$ETOK takes the line that reads \\\"$WANT\\\". Counts belong to the first shape only: a blocked engineer wrote nothing, so its line carries 0 files and no line counts, whatever else is in the working tree."
+  fi
+  if [ "$ETOK" = ENG-BLOCKED ] || [ "$ETOK" = ENG-NO-CHANGE ]; then
+    case "$ENGLINE" in
+      *'0 files'*) ;;
+      *[0-9]' file'*|*'+'[0-9]*)
+        note "X \\u00b7 The Engineer line quotes $ETOK and then reports a count of files or lines: $ENGLINE\\n\\n$ETOK means nothing was written. Its line ends \\u00b7 0 files and carries no +<a> \\u2212<r> at all. If the working tree does hold a change, it was not this engineer's, and act 1 reports it under Inherited instead." ;;
+    esac
+  fi
+fi
+
 # --- U: the header, the placeholders, and the plurals that are always wrong -
 case "$MSG" in
   *'1 pts'*|*'1 points'*)
@@ -477,6 +515,13 @@ case "$MSG" in
   *'1 files'*|*'1 tickets'*|*'1 entries'*|*'1 criteria'*)
     note "U \\u00b7 The response writes a plural after 1: one of 1 files, 1 tickets, 1 entries or 1 criteria. Singular after one, every time - 1 file, 1 ticket, 1 entry, 1 criterion - and the plural from two upwards." ;;
 esac
+# The hedged plural. Agent templates carry <n> file(s) because they do not know
+# the number yet; the render does know it, so it commits to one form or the
+# other. This is the same rule as the one above, caught one line later.
+HEDGE=$(printf '%s' "$MSG" | grep -oE '[0-9]+ [a-z]+\(s\)' 2>/dev/null | sort -u | tr '\n' ' ')
+if [ -n "$HEDGE" ]; then
+  note "U \\u00b7 The response leaves a hedged plural standing: $HEDGE.\\n\\nThe (s) belongs to the agent templates, which are written before the count is known. By the time the response is rendered the count is on the ledger, so the noun agrees with it: 1 file, 2 files, 1 criterion, 4 criteria. Act 4's blast radius and act 5's counts are the two that most often keep the brackets."
+fi
 # Multi-word lowercase slots and a closed list of single-word ones. An HTML tag
 # is either one word or carries attributes with = and quotes in it, so neither
 # shape reaches this: a turn about <button> is about a button.

@@ -59,13 +59,26 @@ MDIR="$DATA/sessions/$SID.engineer"
 # GIT_INDEX_FILE points the staging area at a scratch file, so the user's own
 # index is not touched and nothing is staged. Ignored paths stay out, which
 # keeps .ceremony/ out of the measurement.
+#
+# Ephemera are excluded from both ends of the measurement. An engineer that runs
+# the test suite leaves bytecode behind, and a bytecode file is not a change to
+# the ticket: counted, it inflates the very numbers the diff measurement exists
+# to get right. node_modules is deliberately not on the list - it is ignored
+# everywhere it appears, so it never reaches this command anyway, and it is the
+# one path where excluding it could hide a change somebody meant to make.
+# The pathspec forms matter: :(exclude)**/__pycache__/** misses a __pycache__
+# directory at the repository root on git 2.43, and *__pycache__/* does not.
+EPH1=':(exclude)*__pycache__/*'
+EPH2=':(exclude)*.pyc'
+EPH3=':(exclude)*.DS_Store'
+
 snap_tree() {
   command -v git >/dev/null 2>&1 || return 1
   git -C "$1" rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 1
   IDX="$2.idx"
   rm -f "$IDX" 2>/dev/null || true
   GIT_INDEX_FILE="$IDX" git -C "$1" read-tree --empty >/dev/null 2>&1 || { rm -f "$IDX"; return 1; }
-  GIT_INDEX_FILE="$IDX" git -C "$1" add -A >/dev/null 2>&1 || { rm -f "$IDX"; return 1; }
+  GIT_INDEX_FILE="$IDX" git -C "$1" add -A -- "$EPH1" "$EPH2" "$EPH3" >/dev/null 2>&1 || { rm -f "$IDX"; return 1; }
   T=$(GIT_INDEX_FILE="$IDX" git -C "$1" write-tree 2>/dev/null)
   rm -f "$IDX" 2>/dev/null || true
   case "$T" in ''|*[!0-9a-f]*) return 1 ;; esac

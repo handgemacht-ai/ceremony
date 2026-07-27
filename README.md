@@ -240,9 +240,10 @@ convene nobody again, and finish the turn rather than stop on it.
 ```text
 .ceremony/
   .gitignore                     "*" — the record ignores itself. Delete it to commit the trail.
-  config.json                    {"version":"2.2.1","enforce":"on"} - or "off", the disband tombstone
+  config.json                    {"version":"2.2.2","enforce":"on"} - or "off", the disband tombstone
   CER-<sprint>-<NN>/
-    ticket.md                    append-only: every agent's entire return, under an act heading
+    ticket.md                    append-only: the inherited paths, then every agent's entire return under an act heading
+    implementation.diff          append-only: the hunks this ticket's engineer produced, and only those
     ledger.jsonl                 append-only: one line per verdict (with its condition and blocked counts), one line per edit
     evidence/NNN-<role>.json     the raw hook payload the ledger line was derived from
 ```
@@ -251,6 +252,13 @@ Written by the hooks, from what the agents returned. Read by QA, by
 `/ceremony:audit`, by `/ceremony:retro` and by `/ceremony:ticket`. Never written
 by the model — an attempt is refused, because a record its subject can edit is
 not a record.
+
+`implementation.diff` is the one that answers "who wrote this line". The plugin
+snapshots the working tree when the engineer is convened and again when it
+returns, and the diff between those two snapshots is the engineer's own work,
+separated from everything that was already there — including inside a file that
+holds both. The reviewer, the board and QA read it instead of `git diff`, which
+cannot tell the two apart.
 
 The record is untracked by default. If you want the trail in git, delete
 `.ceremony/.gitignore`.
@@ -309,8 +317,16 @@ If the tree was already dirty when the session started, act 1 says so once, in a
 fixed line, and nothing else in the ceremony touches it: it is not this ticket's
 scope and no signature covers it. The paths concerned are written to the top of
 the ticket record before the first act, which is where the Reviewer, the board
-and QA read them from — so a file somebody edited yesterday is listed as
-inherited rather than raised as an unrequested change.
+and QA read them from.
+
+Naming the paths is not enough on its own, because one file can be both — dirty
+from yesterday *and* edited by this ticket's engineer — and then a single
+`git diff` has two authors in it. So the split is made at the hunk: the plugin
+snapshots the tree when the engineer is convened, snapshots it again when the
+engineer returns, and writes the difference to
+`.ceremony/<ticket>/implementation.diff`. That file is this ticket's work and
+the whole of it. Everything else in the diff is somebody else's, and the
+reviewing roles read it there rather than inferring it.
 
 ## Benchmarks
 
@@ -486,12 +502,16 @@ converted into action items (owner: unassigned, due: next sprint).
   every actor including the chair, and `chmod`, `chown`, `chgrp` and `sudo` for
   subagents, so that an obstacle stays a finding instead of being removed. The
   match is on the tokenised subcommand, not on the text, so `git log --all` and
-  `grep -rn "git commit"` are unaffected. The recorder's other edge is that it
-  cannot tell a change from a side effect: a QA check that runs `python3 -c
-  "import app"` leaves a `__pycache__` directory behind, the working tree has
-  moved, and an implementation entry is filed against whoever ran it. That was
-  enough, in one observed audit turn, to make an otherwise clean sign-off
-  withhold every line over a bytecode file.
+  `grep -rn "git commit"` are unaffected. The recorder's remaining edge is that
+  it cannot tell a change from a side effect. Three kinds of leftover are
+  excluded from every measurement since v2.2.2 — `__pycache__/`, `*.pyc` and
+  `.DS_Store` — because a bytecode file written by a test run belongs to nobody,
+  and counting it once made an otherwise clean audit withhold every signature.
+  The list is deliberately short: `node_modules` is not on it, because it is
+  ignored everywhere it appears and never reaches these commands anyway, and it
+  is the one path where an exclusion could hide a change somebody meant to make.
+  Anything else a run leaves behind — a log file, a coverage report, a build
+  directory the project does not ignore — is still recorded as a change.
 - **The correction budget is two, and the third problem ships.** When a `Stop`
   rule sends a turn back, that is a correction; after two corrections the gate
   stops blocking, on the grounds that a turn stuck in a loop is worse than a turn

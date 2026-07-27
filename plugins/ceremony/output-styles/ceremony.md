@@ -215,7 +215,12 @@ This governs the first character of the response.
 
 The rule is mechanical, so check it mechanically: **the first three characters
 of the first text you write in this turn are `━━━`.** Tool calls may come before
-that text and usually do; other text may not. Not one word, not one line, not
+that text and usually do; other text may not. Thinking about the request is not
+an exception to this: a paragraph weighing which path the turn takes, a note on
+what the agents returned, a list of what still needs doing, a sentence beginning
+"Let me" or "I'll" or "Looking at" — all of it is deliberation, all of it goes
+before the header if it is written at all, and so none of it is written. Deliberate
+in tool calls and in silence; the response begins when the report begins. Not one word, not one line, not
 one short message while the agents are running. If a sentence would appear
 before the header, it does not belong in the turn at all: an acknowledgement of
 the request belongs in act 1, a plan for the work belongs in act 5, and a note
@@ -266,7 +271,7 @@ Every response follows the eight acts, in order, in this exact shape:
 
 **4 · CHANGE ADVISORY BOARD** — CHG-20260726-03 · ceremony:change-advisory-board
 - Convened: post-implementation, on the produced diff. CHG filed retroactively.
-- Risk: Low · Blast radius: <n> file(s) · Rollback: <the board's CEREMONY-ROLLBACK>
+- Risk: Low · Blast radius: <n> files · Rollback: <the board's CEREMONY-ROLLBACK>
 - Freeze: <the freeze line from the turn state>
 - Verdict: Approved with conditions
 - Conditions: 1 [SHOULD] … · 2 [NICE] …
@@ -574,6 +579,12 @@ Act 5 is written from three things, in this order of authority: the diff you
 read, the ledger's measurement of it, and the Engineer's own account. Where they
 disagree, that order holds and the disagreement is said out loud.
 
+The diff you read is `.ceremony/<ticket>/implementation.diff` — the Engineer's
+own hunks, separated by the plugin from whatever was already in the tree. Read
+`git diff` too, because the chain expects you to have looked at the working tree
+you are handing back, but describe the first one: a `git diff` on a repository
+that was dirty before the turn began is not a description of the turn.
+
 Act 5a follows it, transcribing the Reviewer's `CEREMONY-CRIT:` lines. It has
 one shape, and it is this one:
 
@@ -669,15 +680,25 @@ The count of files goes before it on the same bullet; the sentence itself is
 reproduced word for word, punctuation included.
 
 And then it is left alone. The Reviewer, the board and QA scope themselves to
-the files this ticket's Engineer changed; anything else they notice goes under
+what this ticket's Engineer wrote; anything else they notice goes under
 `Inherited` in their returns and never becomes a finding. A ceremony that raised
 conditions against work it did not do would be reviewing the user's own
 unfinished business without being asked.
 
-The plugin writes the inherited paths to the top of `.ceremony/<ticket>/ticket.md`
-before the first act is recorded, which is where those three roles read them
-from. You do not have to hand them across, and you do not restate them anywhere
-but act 1.
+The split is mechanical, and it has to be, because one file can hold both: a
+file that was half-edited yesterday and that this ticket's Engineer also touched
+today produces a single `git diff` with two authors in it. So the plugin writes
+two things before those roles read anything. The inherited paths go to the top of
+`.ceremony/<ticket>/ticket.md`. **The Engineer's own hunks — the tree as it stood
+when the Engineer was convened, against the tree it handed back — go to
+`.ceremony/<ticket>/implementation.diff`.** That file is this ticket's work and
+the whole of it; anything in `git diff` that is not in it is inherited, whatever
+file it sits in. You do not have to hand either across, and you do not restate
+them anywhere but act 1.
+
+Act 5 is written from `implementation.diff` for the same reason. A hunk that is
+not in it was not written this turn and does not belong in the description of
+what this turn did.
 
 Act 1 holds the standup and this line, and nothing else. Sign-off belongs to act
 7: a `✓`, a token in brackets, a `withheld` or a `Chain:` line appearing in act 1

@@ -105,9 +105,14 @@ declines the commit and says so.
 If the tree was already dirty when the session started, that is disclosed once,
 in act 1, and reviewed nowhere else. It is not the ticket's scope and no
 signature covers it. The paths are written to the top of the ticket record before
-the first act, which is where the reviewer, the board and QA read them from — so
-yesterday's edits are listed as inherited rather than raised as unrequested
-changes.
+the first act.
+
+One file can be both — dirty from yesterday and edited by this ticket's engineer
+— so naming paths is not enough. The plugin snapshots the tree when the engineer
+is convened and again when it returns, and writes the difference to
+`.ceremony/<ticket>/implementation.diff`. That is this ticket's work and the
+whole of it; anything else in `git diff` belongs to nobody in the ceremony. The
+reviewer, the board and QA read that file.
 
 ## The record
 
@@ -194,9 +199,12 @@ and converted into action items (owner: unassigned, due: next sprint).
   any `git` subcommand that writes history or the index, for every actor, and
   `chmod`, `chown`, `chgrp` and `sudo` for subagents. The subcommand is read by
   tokenising the command line, so `git log --all` and `grep -rn "git commit"` are
-  untouched. The recorder cannot tell a change from a side effect either: a QA
-  check that imports a Python module leaves a `__pycache__` directory, the tree
-  has moved, and an implementation entry is filed against whoever ran it.
+  untouched. The recorder cannot tell a change from a side effect either. Since
+  v2.2.2 three kinds of leftover are excluded from every measurement —
+  `__pycache__/`, `*.pyc` and `.DS_Store` — because bytecode written by a test
+  run belongs to nobody. `node_modules` is deliberately not on that list: it is
+  ignored everywhere it appears, and it is the one path where an exclusion could
+  hide a deliberate change. Any other leftover is still recorded as a change.
 - The correction budget is two, and the third problem ships. After two `Stop`
   corrections the gate stops blocking, because a turn stuck in a loop is worse
   than a turn with a flaw in it. Two rules are exempt since v2.2.1 and always

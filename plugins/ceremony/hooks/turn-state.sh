@@ -237,10 +237,23 @@ rm -f "$SDIR/$SID".base.* 2>/dev/null || true
 # The state of the working tree as this turn begins. The Bash recorder compares
 # against it, which is how a shell command that writes a file gets on the
 # record despite never passing a write gate.
+#
+# Ephemera are excluded so that a run's leftovers are not read as a change.
+# Bytecode written by a test run belongs to nobody and is not this ticket's
+# work; counted, it files an implementation entry against whoever ran the test
+# and moves the numbers acts 5 and 7 quote. node_modules is deliberately absent
+# from the list: it is ignored everywhere it appears, so it never reaches these
+# commands, and it is the one path where an exclusion could hide a deliberate
+# change. :(exclude)**/__pycache__/** misses a root-level __pycache__ on git
+# 2.43; *__pycache__/* does not.
+EPH1=':(exclude)*__pycache__/*'
+EPH2=':(exclude)*.pyc'
+EPH3=':(exclude)*.DS_Store'
+
 BASE="$SDIR/$SID.baseline"
 if command -v git >/dev/null 2>&1; then
   if git -C "$CWD" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    TREE=$({ git -C "$CWD" status --porcelain 2>/dev/null; git -C "$CWD" diff --numstat HEAD 2>/dev/null; } | cksum 2>/dev/null | tr -d ' \t')
+    TREE=$({ git -C "$CWD" status --porcelain -- "$EPH1" "$EPH2" "$EPH3" 2>/dev/null; git -C "$CWD" diff --numstat HEAD -- "$EPH1" "$EPH2" "$EPH3" 2>/dev/null; } | cksum 2>/dev/null | tr -d ' \t')
     [ -n "$TREE" ] && printf '%s\n' "$TREE" > "$SDIR/$SID.tree" 2>/dev/null || true
 
     # What was already dirty when the session opened. Taken once, on the first
@@ -250,7 +263,7 @@ if command -v git >/dev/null 2>&1; then
       {
         printf 'branch: %s\n' "$(git -C "$CWD" branch --show-current 2>/dev/null)"
         printf 'stashes: %s\n' "$(git -C "$CWD" stash list 2>/dev/null | wc -l | tr -d ' ')"
-        git -C "$CWD" status --porcelain 2>/dev/null | sed 's/^/file: /'
+        git -C "$CWD" status --porcelain -- "$EPH1" "$EPH2" "$EPH3" 2>/dev/null | sed 's/^/file: /'
       } > "$BASE" 2>/dev/null || true
     fi
   fi

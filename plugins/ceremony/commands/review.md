@@ -14,9 +14,15 @@ Run `git diff` and `git status --porcelain` yourself before convening anything.
 You are the second pair of eyes in the chain and your reading is recorded; a
 review turn where the chair never opened the diff is a review of a description.
 
-If the working tree is clean and nothing was implemented this session, say so in
-one line and render act 5a as `Nothing to review — the tree is clean.` Do not
-convene the agent to tell you that.
+The diff under review is `.ceremony/<TICKET>/implementation.diff` — this
+ticket's engineer's own hunks, separated from whatever was already in the tree.
+Anything in `git diff` that is not in that file is inherited and belongs to
+nobody in this ceremony.
+
+If `implementation.diff` is absent or empty, nothing was implemented this
+session: say so in one line and render act 5a as
+`Nothing to review — no implementation on this ticket.` Do not convene the agent
+to tell you that, and do not review the inherited diff instead.
 
 ## 2. Convene the Reviewer
 

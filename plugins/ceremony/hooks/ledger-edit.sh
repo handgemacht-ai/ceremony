@@ -87,11 +87,23 @@ BY=$(printf '%s' "$BY" | tr -cd 'A-Za-z0-9:._-')
 printf '{"ts":"%s","session":"%s","ticket":"%s","role":"implementation","by":"%s","agent_id":"%s","file":"%s"}\n' \
   "$TS" "$SID" "$TICKET" "$BY" "$AID" "$FILE" >> "$DIR/ledger.jsonl" 2>/dev/null || true
 
+# Ephemera are excluded so that a run's leftovers are not read as a change.
+# Bytecode written by a test run belongs to nobody and is not this ticket's
+# work; counted, it files an implementation entry against whoever ran the test
+# and moves the numbers acts 5 and 7 quote. node_modules is deliberately absent
+# from the list: it is ignored everywhere it appears, so it never reaches these
+# commands, and it is the one path where an exclusion could hide a deliberate
+# change. :(exclude)**/__pycache__/** misses a root-level __pycache__ on git
+# 2.43; *__pycache__/* does not.
+EPH1=':(exclude)*__pycache__/*'
+EPH2=':(exclude)*.pyc'
+EPH3=':(exclude)*.DS_Store'
+
 # This change is now on the record, so it is the new baseline. Without this the
 # Bash recorder would see the same change again and file it a second time.
 if command -v git >/dev/null 2>&1; then
   if git -C "$CWD" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    ST=$({ git -C "$CWD" status --porcelain 2>/dev/null; git -C "$CWD" diff --numstat HEAD 2>/dev/null; } | cksum 2>/dev/null | tr -d ' \t')
+    ST=$({ git -C "$CWD" status --porcelain -- "$EPH1" "$EPH2" "$EPH3" 2>/dev/null; git -C "$CWD" diff --numstat HEAD -- "$EPH1" "$EPH2" "$EPH3" 2>/dev/null; } | cksum 2>/dev/null | tr -d ' \t')
     [ -n "$ST" ] && printf '%s\n' "$ST" > "$DATA/sessions/$SID.tree" 2>/dev/null || true
   fi
 fi

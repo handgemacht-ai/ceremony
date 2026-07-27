@@ -137,12 +137,13 @@ syntax or compile check is neither, and says nothing about formatting.
 
 Item 6 is not a reading of `git status`. The working tree can have been dirty
 before this ticket opened, and the paths that were already dirty are listed at
-the top of `.ceremony/<TICKET>/ticket.md` under `Inherited paths`. Compare the
-diff against **that list plus the paths this ticket's engineer changed** — the
-`implementation` lines in `.ceremony/<TICKET>/ledger.jsonl`. A modified file that
-appears on the inherited list is accounted for, and item 6 is `PASS` with the
-evidence naming it as inherited. Item 6 is `FAIL` only for a file that is on
-neither list.
+the top of `.ceremony/<TICKET>/ticket.md` under `Inherited paths`. What this
+ticket's engineer actually wrote is in `.ceremony/<TICKET>/implementation.diff`.
+Compare `git status` against those two together. A modified file that appears on
+the inherited list is accounted for, and item 6 is `PASS` with the evidence
+naming it as inherited — including a file that appears on **both** lists,
+because a file can be half somebody else's and half this ticket's. Item 6 is
+`FAIL` only for a modified file that is on neither.
 
 Item 9 is `SKIP` with the evidence `no previous retrospective on the record`.
 It has never been anything else.

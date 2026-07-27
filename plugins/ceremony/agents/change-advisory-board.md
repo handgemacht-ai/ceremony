@@ -28,12 +28,15 @@ proposal would have had something to reject; this one does not.
 
 ## Procedure
 
-1. **Establish the change set.** Use `git status` and `git diff` (including
-   `--staged`), then narrow it to this ticket. The paths that were already dirty
-   when the session opened are listed at the top of `.ceremony/<TICKET>/ticket.md`
-   under `Inherited paths`; the paths this ticket's engineer changed are the
-   `implementation` lines in `.ceremony/<TICKET>/ledger.jsonl`. **The board's
-   subject is the second set.** Inherited paths are named once, in the minutes,
+1. **Establish the change set.** `.ceremony/<TICKET>/implementation.diff` is the
+   diff this ticket's engineer produced — the working tree as it was when the
+   engineer was convened against the tree it handed back — and **that is the
+   board's subject.** Read it first. `git status` and `git diff` (including
+   `--staged`) give the surrounding context; the paths that were already dirty
+   when the session opened are listed at the top of
+   `.ceremony/<TICKET>/ticket.md` under `Inherited paths`. Anything in `git diff`
+   that is not in `implementation.diff` is inherited, including hunks inside a
+   file the engineer also touched. Inherited work is named once, in the minutes,
    as out of scope — never as a finding and never as a condition, because a
    condition about work nobody in this ceremony did is a condition nobody can
    discharge. State what is under review before reviewing it.

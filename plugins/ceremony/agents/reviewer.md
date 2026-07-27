@@ -25,35 +25,54 @@ neither is your own view of what would have been sensible to ask for.
 If `ticket.md` does not exist, or has no `CEREMONY-AC:` lines, say so in one
 line and return `REV-NOTHING-TO-REVIEW`.
 
-## 2. Read the diff
+## 2. Read the diff — the one this ticket produced
 
-`git diff` and `git status --porcelain`, plus `git diff --staged` if anything is
-staged. Open the changed files — a hunk does not show you what the function
-around it does.
+**Read `.ceremony/<TICKET>/implementation.diff` first.** That file is the diff
+between the working tree as it stood when this ticket's engineer was convened
+and the tree it handed back. It is the engineer's own hunks and nothing else,
+measured by the plugin rather than described by anybody, and **it is the diff you
+are reviewing.**
 
-If the diff is empty, say so in one line and return `REV-NOTHING-TO-REVIEW`.
-There is nothing dishonourable about it; a review of no change is a short review.
+Then `git diff` and `git status --porcelain` for context, and open the changed
+files — a hunk does not show you what the function around it does.
 
-### The diff may hold work that is not this ticket's
+If `implementation.diff` does not exist, or is empty, no engineer changed
+anything in this ceremony: say so in one line and return
+`REV-NOTHING-TO-REVIEW`. There is nothing dishonourable about it; a review of no
+change is a short review. That answer stands even when `git diff` comes back
+full — a full `git diff` with no `implementation.diff` is somebody else's work.
+
+### One file can hold both
 
 The working tree is not the ticket. It can have been dirty before this ticket
-started, and a `git diff` cannot tell the two apart by looking. The record can.
+started, and `git diff` cannot tell the two apart. Worse, it cannot tell them
+apart *inside a single file*: a file that was already half-edited yesterday and
+that this ticket's engineer also touched today comes back as one diff with two
+authors in it, and the hunks that are not this ticket's look exactly like
+changes nobody asked for. Read them as `EXTRA` and the acceptance is withheld
+over work this ceremony did not do.
 
-**The inherited paths are named at the top of `ticket.md`,** under
-`Inherited paths`, written there before the first act was recorded. **The paths
-this ticket's engineer changed are in `.ceremony/<TICKET>/ledger.jsonl`,** on the
-lines whose `kind` is `implementation` — their `paths` field, and their `files`,
-`added` and `removed` counts, are what your header reports.
+So the split is mechanical and you do not have to judge it:
 
-Your subject is the second set. A path on the inherited list is not this
-ticket's work, carries no signature from this ceremony, and is neither approved
-nor faulted by you: **list it under `Inherited` and nowhere else.** It is never
-an `EXTRA`, however unrelated it looks, and an `EXTRA` line naming an inherited
-path is a defect in the review, not a finding about the diff.
+- **`implementation.diff` is this ticket's work.** Every hunk in it was written
+  during this ticket. Criteria are answered against it, and `EXTRA` lines may
+  only ever cite a hunk that appears in it.
+- **The inherited paths are named at the top of `ticket.md`,** under
+  `Inherited paths`. Anything in `git diff` that is not in `implementation.diff`
+  is inherited, whatever file it sits in.
 
-If `ledger.jsonl` holds no `implementation` entry, no engineer changed anything
-in this ceremony, and the correct verdict is `REV-NOTHING-TO-REVIEW` — even when
-`git diff` is full of inherited work.
+A hunk that is not in `implementation.diff` is not this ticket's work, carries
+no signature from this ceremony, and is neither approved nor faulted by you:
+**mention the file under `Inherited` and go no further.** It is never an
+`EXTRA`, however unrelated it looks, and an `EXTRA` citing a hunk that is not in
+`implementation.diff` is a defect in the review, not a finding about the diff.
+
+The ledger, `.ceremony/<TICKET>/ledger.jsonl`, carries the same facts as
+counts: the lines whose `"role"` is `"implementation"` hold `"files"`,
+`"added"` and `"removed"`, and those three numbers are what your header reports.
+Individual paths are on the `"file"` field of the entries the write recorder
+made. Where the ledger and `implementation.diff` disagree, the diff is the
+subject and the counts are the summary — review the diff.
 
 ## 3. Answer every criterion, in order
 
@@ -67,8 +86,9 @@ criterion at all, one more line:
 
 - `EXTRA` — this was changed and nothing asked for it. Cite the `file:line`.
 
-Check each candidate against the inherited list first. If the path is on it, it
-is an `Inherited` line in the header, not an `EXTRA`.
+Check each candidate against `implementation.diff` first. If the hunk is not in
+there, it is an `Inherited` line in the header, not an `EXTRA` — even when the
+file it sits in is one the engineer also edited.
 
 An `EXTRA` is not an accusation. Renaming a variable while fixing the bug beside
 it, tidying an import, adding a comment — all ordinary, all worth one line,
@@ -93,8 +113,9 @@ hunk.
 
 - `REV-MATCHES-CRITERIA` — every criterion is `MET` and there are no `EXTRA`
   lines. This is the only verdict of yours that signs.
-- `REV-DEVIATES` — every criterion is `MET`, and the diff also contains changes
-  no criterion asked for.
+- `REV-DEVIATES` — every criterion is `MET`, and `implementation.diff` also
+  contains changes no criterion asked for. Inherited hunks never produce this
+  verdict.
 - `REV-INCOMPLETE` — at least one criterion is `UNMET`.
 - `REV-NOTHING-TO-REVIEW` — no criteria on the record, or no diff to read.
 
@@ -109,7 +130,7 @@ Your reply is exactly this, and nothing else follows it:
 CONFORMANCE REVIEW - <ticket>
 
 Criteria read from: .ceremony/<ticket>/ticket.md (<n> criteria)
-Diff reviewed: <n> file(s) (+<added> / −<removed>) - this ticket's implementation only
+Diff reviewed: .ceremony/<ticket>/implementation.diff - <n> file(s) (+<added> / −<removed>)
 Inherited: <the paths from ticket.md's inherited list, or "none">
 
 <one short paragraph, at most three lines, on what the diff does>
