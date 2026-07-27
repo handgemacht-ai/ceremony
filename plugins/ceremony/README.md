@@ -106,7 +106,9 @@ and converted into action items (owner: unassigned, due: next sprint).
   Smaller models sometimes deliver one response as two or three messages, and
   only the final one is checked. Token checking is scoped to the sign-off block,
   which is what stops a quoted gate message from reading as a forged signature —
-  and it means a stray token elsewhere is not checked either.
+  and it means a stray token elsewhere is not checked either. A split render is
+  also how an act headed by an agent that never ran gets past the check:
+  measured at roughly one turn in nine on smaller models.
 - QA's start command can outlive the check through its own children. The
   served-artifact check starts the project's own command under `timeout`, so the
   command itself ends by itself; a start script that spawns background children
@@ -115,7 +117,8 @@ and converted into action items (owner: unassigned, due: next sprint).
   limitation.
 
 `.ceremony/` appears the first time a turn changes a file. It ignores itself,
-arms nothing on its own, and `/ceremony:disband` removes it.
+arms nothing on its own, and `/ceremony:disband` removes the ticket records
+inside it, leaving the tombstone behind.
 
 Enforcement arms itself the first time an agent returns: the hook that writes
 the record creates `config.json` with `enforce: "on"`, and every gate reads that

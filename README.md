@@ -143,9 +143,9 @@ Enforcement you cannot switch off is not a process, it is a trap. So:
    hook overwrites one that is already there. The turn convenes nobody: the
    convening gate refuses every agent on a disband turn, and the ledger writer
    refuses to arm anything, so a removal command that is mistyped or cut short
-   still cannot leave enforcement standing. Uses Bash, which this plugin never
-   gates. `/ceremony:grooming` removes the tombstone, and that is what lets the
-   next agent return arm the gates again.
+   still cannot leave enforcement standing on that turn. Uses Bash, which this
+   plugin never gates. `/ceremony:grooming` removes the tombstone, and that is
+   what lets the next agent return arm the gates again.
 2. `CEREMONY_ENFORCE=off` in the environment — keeps the record, disarms the
    gates.
 3. `/hooks` — turns the hooks off for the session.
@@ -236,7 +236,7 @@ not review strategy. Where their conclusions conflict, both stand.
 | `/ceremony:ticket` | Prints the ticket record, the ledger and the evidence file listing, and says whether the last verification post-dates the last change. |
 | `/ceremony:retro` | Reviews the session from the ledger — tickets, points, verdicts, withheld signatures — and reports what went well, what did not, action items, team health and velocity. |
 | `/ceremony:audit` | Reconciles the rendered responses against the ledger and the evidence files, checks convening integrity and signature integrity, then records that the auditor was not independent. |
-| `/ceremony:disband` | Removes `.ceremony/`, states what was removed, and states how to re-arm it. |
+| `/ceremony:disband` | Removes the ticket records and leaves the tombstone behind, states what was removed, and states how to re-arm it. |
 
 ## Recommended order
 
@@ -288,7 +288,9 @@ converted into action items (owner: unassigned, due: next sprint).
   Smaller models sometimes deliver one response as two or three messages, and
   only the final one is checked. Token checking is scoped to the sign-off block,
   which is what stops a quoted gate message from reading as a forged signature —
-  and it means a stray token in act 2 or act 6 is not checked either.
+  and it means a stray token in act 2 or act 6 is not checked either. A split
+  render is also how an act headed by an agent that never ran gets past the
+  check: measured at roughly one turn in nine on smaller models.
 - **QA's start command can outlive the check through its own children.** The
   served-artifact check starts the project's own command under `timeout`, so the
   command itself ends by itself; a start script that spawns background children
@@ -301,7 +303,7 @@ Two things to know rather than limitations.
 `.ceremony/` appears in a repository the first time a turn changes a file,
 before you have asked for anything. It ignores itself — the directory ships a
 `.gitignore` containing `*` — and it arms nothing on its own. `/ceremony:disband`
-removes it.
+removes the ticket records inside it and leaves the tombstone behind.
 
 Enforcement arms itself the first time an agent returns. The `PostToolUse` hook
 that writes the record creates `config.json` with `enforce: "on"`, and every
