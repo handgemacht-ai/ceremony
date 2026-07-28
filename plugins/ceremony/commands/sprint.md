@@ -26,7 +26,7 @@ stop. The ids are real or they are nothing.
 ```text
 ━━━ SPRINT <n> CLOSED · carried ━━━
 Carried: CER-BL-0003 · restore-verification · Elixir toolchain not installed
-Verification withheld: 4 check(s). QA-BLOCKED stands; no signature was invented.
+Verification withheld: 4 checks. QA-BLOCKED stands; no signature was invented.
 ```
 
 The carried line quotes the backlog entry as it is written. The withheld line
@@ -38,7 +38,7 @@ quotes the count from the ledger. Nothing here is estimated.
 ━━━ SPRINT <n+1> · opened in session · day 1 of 14 ━━━
 Planning: CER-BL-0003 (3 pts) — the only item. Scope unchanged from CER-276-03.
 DevOps Engineer · attempt 2 · mechanism: just setup — OPS-BLOCKED
-QA Sign-off Officer · re-run · 4 check(s) still BLOCKED — QA-BLOCKED
+QA Sign-off Officer · re-run · 4 checks still BLOCKED — QA-BLOCKED
 Sprint <n+1> closed. No mechanism remains untried.
 ```
 
@@ -46,6 +46,12 @@ Sprint <n+1> closed. No mechanism remains untried.
 untried mechanism from the entry's `"needs"` field. If it returns
 `OPS-RESTORED`, convene `ceremony:qa` to re-run the previously blocked items for
 real. If it does not, there is nothing for QA to re-run.
+
+An entry minted from `OPS-NEEDS-CHANGE` names a file and a change in `"needs"`
+rather than a mechanism, and there is nothing to convene for it: no mechanism
+was left, and the change belongs to a request somebody makes on purpose. Report
+it as it stands — the entry, what it needs, and the command that would clear it
+— and close the sprint without a second attempt.
 
 The next sprint is a loop iteration, not a second ceremony. Do not re-run
 grooming, do not re-run the review wave, and do not render eight acts: the

@@ -172,7 +172,7 @@ if [ "$ROLE" = devops ]; then
   done
   printf '%s' "$MINE" | grep '"role":"qa"' 2>/dev/null | grep -q '"verdict":"QA-BLOCKED"' 2>/dev/null && QABLK=yes
   if [ "$QABLK" = no ]; then
-    deny "ceremony:devops is convened when verification is blocked, and nothing on $TICKET is blocked: the ledger holds no QA entry with a BLOCKED check on it.\\n\\nThe ops lane exists for one situation - QA ran a check and the environment was not there, so the check could not run at all. Convene ceremony:qa first. If QA comes back with BLOCKED lines, the ops lane opens and this call is allowed; if it comes back PASS, FAIL or PARTIAL, there is nothing to restore and the ticket goes to act 7 as it stands.\\n\\nA failing check is not a blocked one, and it is not the ops lane's business either: a test that runs and fails is a finding about the code, which is what act 6 is for.\\n\\nTo work without the ceremony: /ceremony:disband, or CEREMONY_ENFORCE=off, or /hooks."
+    deny "ceremony:devops is convened when verification is blocked, and nothing on $TICKET is blocked: the ledger holds no QA entry with a BLOCKED check on it.\\n\\nThe ops lane exists for one situation - QA ran a check and the environment was not there, so the check could not run at all. Convene ceremony:qa first. The lane opens on the blocked count and on nothing else: any QA return carrying a BLOCKED line allows this call, QA-BLOCKED and QA-PARTIAL alike, and a return with none of them does not, whatever its verdict says.\\n\\nA failing check is not a blocked one, and it is not the ops lane's business either: a test that runs and fails is a finding about the code, which is what act 6 is for. A check that could not execute - a command not found, a connection refused, a toolchain with no version selected - is BLOCKED, and that is the one this lane is for.\\n\\nTo work without the ceremony: /ceremony:disband, or CEREMONY_ENFORCE=off, or /hooks."
   fi
 fi
 
@@ -187,7 +187,8 @@ case "$ROLE" in
     SEEN=$(printf '%s' "$MINE" | grep -c '"role":"'"$ROLE"'"' 2>/dev/null) || SEEN=0
     case "$SEEN" in ''|*[!0-9]*) SEEN=0 ;; esac
     if [ "$SEEN" -ge "$CAP" ]; then
-      deny "$AGENT has been convened $SEEN time(s) on $TICKET and the cap for this role is $CAP. The loop advances on a mechanism nobody has tried; it does not advance by asking the same role again.\\n\\nRender what is already on the record. If verification is still blocked, that is the final-resort escalation: the diagnosis, the mechanisms that were exhausted, the one command that would clear it, and the closing line 'Decision required from the user: none.' The ticket stays carried in the backlog and the user is told, not asked.\\n\\nTo work without the ceremony: /ceremony:disband, or CEREMONY_ENFORCE=off, or /hooks."
+      case "$SEEN" in 1) TIMES='once' ;; 2) TIMES='twice' ;; *) TIMES="$SEEN times" ;; esac
+      deny "$AGENT has been convened $TIMES on $TICKET and the cap for this role is $CAP. The loop advances on a mechanism nobody has tried; it does not advance by asking the same role again.\\n\\nRender what is already on the record. If verification is still blocked, that is the final-resort escalation: the diagnosis, the mechanisms that were exhausted, the one command that would clear it, and the closing line 'Decision required from the user: none.' The ticket stays carried in the backlog and the user is told, not asked.\\n\\nTo work without the ceremony: /ceremony:disband, or CEREMONY_ENFORCE=off, or /hooks."
     fi
     ;;
 esac

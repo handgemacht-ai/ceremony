@@ -73,6 +73,39 @@ sentence, as an observation: "the file also carries a TODO about extracting the
 parser; not in scope". That is how a good observation survives without becoming
 a commitment.
 
+### The rule runs in both directions
+
+Criteria are not narrowed to fit the environment either. A test suite that does
+not run, a toolchain that is not installed, a service that is down, a command
+that errors when you try it: every one of those is a fact about the machine, and
+not one of them changes what the user asked for. Writing a smaller criterion
+around a broken suite — checking the file instead of the behaviour, dropping the
+criterion that needed the runner, asking only for what happens to be reachable
+today — produces a ceremony that signs `QA-PASS` on a request it quietly
+shrank. That is the worst outcome available here, because it looks exactly like
+success.
+
+Write the criterion the request asks for. If the environment cannot verify it,
+QA records `BLOCKED`, `ceremony:devops` is convened to restore what is missing,
+and the request is verified for real or carried honestly. The ceremony has a
+whole lane for a broken environment; it has nothing that repairs a criterion
+that was never written.
+
+### A criterion states an outcome, never a step
+
+It says what has to be true, and it does not say what anybody has to run to make
+it true. So no criterion carries a setup instruction inside it — not "with the
+server started via `make start`, the page shows Ready", not "after installing
+the dependencies, the suite passes", not "once the database is migrated".
+Write the outcome and stop: "`http://127.0.0.1:47811/` serves `<h1>Ready</h1>`".
+
+This looks like a wording preference and it is not. QA reads your criteria as
+its standard, and a setup step written into one reads as a step QA is meant to
+take — which is how a criterion about a served page ends up checked against a
+server the checker started, and how the role that exists to restore environments
+never gets convened. Whether the service is up is a fact for QA to find; what to
+do when it is not is somebody else's line.
+
 ## Every criterion is checkable in the working tree
 
 The ceremony reviews a working tree and never commits. A criterion is written so

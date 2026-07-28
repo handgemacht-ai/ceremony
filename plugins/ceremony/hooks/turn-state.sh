@@ -13,6 +13,16 @@ num() {
   printf '%s' "$_n"
 }
 
+# The turn state is copied from more often than it is read, so it agrees its own
+# nouns rather than hedging them: the sign-off gate refuses "<n> thing(s)" in the
+# response, and a hedged plural here is where one comes from.
+plu() {
+  case "$1" in
+    1) printf '1 %s' "$2" ;;
+    *) printf '%s %s' "$1" "$3" ;;
+  esac
+}
+
 jget() {
   printf '%s' "$RAW" | awk -v k="$1" '
     BEGIN { RS = "\1" }
@@ -297,7 +307,7 @@ if [ -f "$BASE" ]; then
   case "$INHERITED" in ''|*[!0-9]*) INHERITED=0 ;; esac
 fi
 if [ "$INHERITED" -gt 0 ]; then
-  INHLINE="$INHERITED file(s) were already modified when this session opened - not this ticket's work, not this ticket's scope, and no signature covers them. Report them once, in act 1, under Inherited, with the fixed line: Inherited working-tree state is reported here and reviewed nowhere else. It is not this ticket's scope and no signature covers it. The reviewing roles scope themselves to the files this ticket's engineer changed."
+  INHLINE="$(plu "$INHERITED" file files) already modified when this session opened - not this ticket's work, not this ticket's scope, and no signature covers them. Report them once, in act 1, under Inherited, with the fixed line: Inherited working-tree state is reported here and reviewed nowhere else. It is not this ticket's scope and no signature covers it. The reviewing roles scope themselves to the files this ticket's engineer changed."
 else
   INHLINE="the working tree was clean when this session opened, so everything in the diff is this session's work and act 1 says nothing about inherited state."
 fi
@@ -395,7 +405,8 @@ printf '%s\n' "$HDRLINE" > "$SDIR/$SID.header" 2>/dev/null || true
   printf 'roles: '
   printf "$STATE"
   printf '\n'
-  printf 'implementation: %s entry/entries on this ticket \302\267 last engineer measurement: %s file(s), +%s -%s (these are the numbers acts 5 and 7 quote)\n' "$IMPLN" "$IMPLF" "$IMPLA" "$IMPLR"
+  printf 'implementation: %s on this ticket \302\267 last engineer measurement: %s, +%s -%s (these are the numbers acts 5 and 7 quote)\n' \
+    "$(plu "$IMPLN" entry entries)" "$(plu "$IMPLF" file files)" "$IMPLA" "$IMPLR"
   printf 'inherited: %s\n' "$INHLINE"
   printf 'enforcement: %s\n' "$ENFORCE"
   printf 'header-line: %s\n' "$HDRLINE"

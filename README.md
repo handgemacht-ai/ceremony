@@ -164,7 +164,7 @@ v2 ships hooks. They are the part of the process that is not a suggestion.
 | `PostToolUse` on writes | Records that the code moved, when, and by whose hand — the Engineer, another agent, or the chair. |
 | `SubagentStart` / `SubagentStop` | Marks the window in which the Engineer is running, and clears it when the Engineer returns. The write gate reads that marker; a marker older than thirty minutes is ignored and deleted. |
 | `PostToolUse` on `Bash` | Records the chair reading the diff — `git diff`, `git status`, `git show`, `git log -p` — which is the link in the chain the sign-off checks. Compares the working tree against the state at the start of the turn. If a shell command changed it, that is an implementation entry too, marked `via: "bash"`. Post-hooks cannot refuse anything; this one only records, which is enough to bring shell writes under the rule that verification must follow the change. Outside a git repository it does nothing. |
-| `Stop` | Thirty-one rules. Refuses to end a turn on a verdict token act 7 quotes that no agent returned — ticked or withheld — a tick on a token that withholds, a clock time in act 7, an act headed by an agent that never ran, a placeholder where the estimate goes, a file-changing turn rendered as a question or as bare prose, a sign-off assembled from an empty ledger, ticked boxes with no QA entry, a verification that ran before the change, a board condition act 4 left unanswered, a blocked verification the turn did not escalate, an escalation with nothing to escalate, a blocked verification escalated straight to the user with no DevOps Engineer on the ledger, a restoration nobody re-verified, a `Decision required from the user:` line that is followed by anything other than `none`, or a turn that lists the ways out of the plugin and asks the user to choose instead of doing the work. Then, reported together rather than one at a time: a change the chair made itself, an act 5 describing a diff nobody read, counts that disagree with the ledger, a signature on a blocked implementation, a review that answered fewer criteria than were accepted, a deviation with no Deviations block, an act 7 missing one of its ten lines, a DevOps line whose shape disagrees with the verdict it quotes, a `CER-BL-` id that exists nowhere, a backlog entry the response never mentioned, a carried line naming a kind outside the two, a sprint roll on disk that the render omits or a roll in the render that never happened, a QA re-run that ran no commands, a `NOTHING-TO-REVIEW` over an implementation the ledger recorded, an unfilled placeholder left in the render, and an acceptance ticked without one. Two of them ignore the correction budget and fire however many corrections the turn has already had: the chair-authored change, and a turn that committed anyway. |
+| `Stop` | Thirty-three rules. Refuses to end a turn on a verdict token act 7 quotes that no agent returned — ticked or withheld — a tick on a token that withholds, a clock time in act 7, an act headed by an agent that never ran, a placeholder where the estimate goes, a file-changing turn rendered as a question or as bare prose, a sign-off assembled from an empty ledger, ticked boxes with no QA entry, a verification that ran before the change, a board condition act 4 left unanswered, a blocked verification the turn did not escalate, an escalation with nothing to escalate, a blocked verification escalated straight to the user with no DevOps Engineer on the ledger, a restoration nobody re-verified, a `Decision required from the user:` line that is followed by anything other than `none`, or a turn that lists the ways out of the plugin and asks the user to choose instead of doing the work. Then, reported together rather than one at a time: a change the chair made itself, an act 5 describing a diff nobody read, counts that disagree with the ledger, a signature on a blocked implementation, a review that answered fewer criteria than were accepted, a deviation with no Deviations block, an act 7 missing one of its ten lines, a DevOps line whose shape disagrees with the verdict it quotes, a `CER-BL-` id that exists nowhere, a backlog entry the response never mentioned, a carried line naming a kind outside the two, a sprint roll on disk that the render omits or a roll in the render that never happened, a QA re-run that ran no commands, a `NOTHING-TO-REVIEW` over an implementation the ledger recorded, evidence quoting an execution failure while the ledger counts no blocked check, a signing token disclaimed on a turn where nothing on the record explains it, an unfilled placeholder left in the render, and an acceptance ticked without one. Two of them ignore the correction budget and fire however many corrections the turn has already had: the chair-authored change, and a turn that committed anyway. |
 
 Token checking is scoped to act 7 and disposition counting to act 4. A response
 may quote a gate's own wording, a command file or a ticket note anywhere else
@@ -225,7 +225,8 @@ instructions is a finding about the project. Eight commands, 180 seconds each,
 
 Four closed verdicts come back. `OPS-RESTORED` sends QA back in to re-execute
 the blocked items for real. `OPS-NEEDS-CHANGE` means the fix is a file in this
-repository, and it becomes a ticket like any other. `OPS-NOTHING-TO-DO` means
+repository, and the plugin files a `restore-verification` entry that names the
+change. `OPS-NOTHING-TO-DO` means
 the environment was sound and the block is about the change. `OPS-BLOCKED` means
 nothing was restored.
 
@@ -249,7 +250,7 @@ Diagnosis: mise pins a version for this project and it is not installed.
   Sprint 276 · DevOps Engineer: `mise install` — exit 1
   Sprint 277 · DevOps Engineer: `just setup` — recipe not found
 Mechanisms exhausted: mise · just. None remaining.
-Unverified: 4 acceptance check(s), all [ ] in act 6.
+Unverified: 4 acceptance checks, all [ ] in act 6.
 The one command that would clear this:
   mise install
 Backlog: CER-BL-0003 stays open until it does.
@@ -291,7 +292,7 @@ convene nobody again, and finish the turn rather than stop on it.
 ```text
 .ceremony/
   .gitignore                     "*" — the record ignores itself. Delete it to commit the trail.
-  config.json                    {"version":"2.3.0","enforce":"on"} - or "off", the disband tombstone
+  config.json                    {"version":"2.3.1","enforce":"on"} - or "off", the disband tombstone
   backlog.jsonl                  append-only: the carried tickets, in two kinds and no third. Outlives the session.
   sprint-offset                  an integer. Ceremony time = calendar sprint + this. Project-scoped so numbers never regress.
   CER-<sprint>-<NN>/
@@ -429,13 +430,24 @@ zero changes blocked.**
   and 7 come from the runtime's own accounting of what the Engineer did. The
   Engineer's own figure is kept beside them as a cross-check, and a disagreement
   is recorded and blocked on.
-- **QA starts the app, and only the app.** When an acceptance criterion is about
-  what a user would see, QA runs the project's own start command, requests the
-  page and greps the served bytes. `SKIP` is not available for that class of
-  criterion, and neither is a server QA invented: if the project defines no
-  start command, the item is `BLOCKED` and says what was searched — and a
-  `BLOCKED` item is escalated to the user with the command that failed rather
-  than absorbed into a cheerful sign-off.
+- **Nobody checks a service they started.** When an acceptance criterion is
+  about what a user would see, QA requests the artifact from the service **as it
+  is running now** and greps the served bytes. If nothing answers, QA does not
+  start it: the item is `BLOCKED` naming the start command the project itself
+  defines, which is what convenes the DevOps Engineer. The Engineer is fenced
+  the same way — it writes code and does not stand up infrastructure. Starting
+  services belongs to one role, and it is not one of the roles that sign. A
+  criterion about a page, checked against a server the checker started, is a
+  criterion whose truth rests on an unreviewed action — the same defect as
+  approving your own diff, arriving through the back door.
+- **`BLOCKED` and `FAIL` are decided mechanically.** A check that could not
+  execute — command not found, toolchain unselected, connection refused, port
+  held by a foreign process — is `BLOCKED`. `FAIL` is reserved for a check that
+  ran and contradicted the criterion. The distinction is load-bearing rather
+  than cosmetic: the ops lane opens on the blocked count and on nothing else, so
+  an environment failure written as a `FAIL` closes the one lane that could have
+  repaired it. QA's brief enumerates the signals, and the sign-off gate reports
+  a turn whose evidence quotes one while the ledger counts none.
 - **QA checks only what QA can see.** The standing list is nine items it can
   actually run. Whether the board approved, whether an ADR exists and whether a
   rollback path was named are facts about the record, read off the ledger in
@@ -485,7 +497,7 @@ not review strategy. Where their conclusions conflict, both stand.
 | `/ceremony:review` | Convenes the Reviewer agent on the diff, which reads the accepted criteria off the ticket record — not off the caller — and answers every one of them `MET` or `UNMET`, plus a line for every change nothing asked for. |
 | `/ceremony:cab` | Convenes the three-seat Change Advisory Board agent on the diff that was produced, which reads the changed files and issues board minutes with `file:line` findings. |
 | `/ceremony:steering` | Convenes the three-seat Steering Committee agent, which reads the repository, drafts three objectives from what it finds there, and assesses the work against them with reservations. |
-| `/ceremony:signoff` | Convenes the QA agent, which reads the acceptance criteria off the ticket record, runs the checks, starts the app when a criterion is about what a user would see, and returns a Definition of Done that act 6 transcribes verbatim. |
+| `/ceremony:signoff` | Convenes the QA agent, which reads the acceptance criteria off the ticket record, runs the checks against the environment as it stands, and returns a Definition of Done that act 6 transcribes verbatim. A check it could not execute comes back `BLOCKED`, which opens the ops lane. |
 | `/ceremony:ticket` | Prints the ticket record, the ledger and the evidence file listing, and says whether the last verification post-dates the last change. |
 | `/ceremony:backlog` | Lists the carried tickets — id, kind, which ticket opened it, what it needs. Read-only; it inspects the loop rather than running it. |
 | `/ceremony:sprint` | Closes the sprint, carries what is unfinished, rolls the offset and runs the next loop iteration: DevOps Engineer on the untried mechanism, then QA's re-run. The manual entry to the mechanic the standard path enters on its own. |
@@ -589,10 +601,15 @@ converted into action items (owner: unassigned, due: next sprint).
   and it means a stray token in act 2 or act 6 is not checked either. A split
   render is also how an act headed by an agent that never ran gets past the
   check: measured at roughly one turn in nine on smaller models.
-- **QA's start command can outlive the check through its own children.** The
-  served-artifact check starts the project's own command under `timeout`, so the
-  command itself ends by itself; a start script that spawns background children
-  can leave those behind. No leak was observed in the most recent round.
+- **The Bash gate reads command position, so a forbidden verb survives a
+  wrapper.** It refuses `kill`, `pkill`, `docker stop` and the system package
+  managers where a command starts, and `xargs`, `nohup`, `timeout`, `command`,
+  `sudo` and a `VAR=value` prefix are all seen through. What it does not see is
+  a verb inside a quoted argument: `bash -c 'kill 1'`, `eval`, `python3 -c`, an
+  absolute path, a backslash escape or a command substitution all pass. The gate
+  is a fence for an agent that is not trying to climb it — `ceremony:devops` has
+  no write tools at all, and the refusal exists to keep an honest role inside
+  the project's own mechanisms rather than to contain an adversary.
 - **Where `implementation.diff` cannot be produced, the measurement is missing
   and the counts read zero.** The file is written from two git tree snapshots,
   so a directory that is not a git repository has none, and neither does a
@@ -638,6 +655,31 @@ any agent return does the same thing. The consequence is deliberate: in a
 repository the plugin has never touched, the first edit of the first turn is
 ungated, because arming a repository nobody asked to arm would be worse than
 letting one edit through.
+
+Closed by v2.3.0: a ceremony that ran into a missing toolchain in QA and ended
+by asking the user to install it. The ops lane sits in front of the user now —
+`ceremony:devops` works the project's own mechanisms first, the sprint loop
+gives an untried one a second attempt inside the same session, and the last line
+of the escalation is fixed at `Decision required from the user: none.`
+
+Closed by v2.3.1, all three found by running v2.3.0 rather than by reading it:
+**a filed ticket that was not on disk.** The backlog write sat on the pass path,
+below the correction-budget exit, so the turn most likely to carry something —
+a blocked one, which renders unusual shapes and spends corrections doing it —
+was the turn that lost it. The render said filed; the next session read an empty
+backlog. It is written first now, above every rule and every exit.
+**QA was told to start the service it was about to check.** One section of its
+brief handed it the project's start command while another forbade repairs, and
+the start command won: in the runs built to force the ops lane, QA repaired the
+environment itself and then signed a criterion whose truth rested on that
+repair. QA checks a service it did not start; the Engineer is fenced the same
+way; starting things belongs to the one role that signs nothing.
+**And the lane's entrance was a wording judgement.** The same broken environment
+came back as `QA-FAIL` on one model and as an unticked skip on another, and
+neither reaches a lane that opens on the blocked count. `BLOCKED` and `FAIL` are
+now separated mechanically — could not execute against executed and
+contradicted — with the signals enumerated in the brief and a `Stop` rule that
+reports evidence quoting an execution failure while the ledger counts none.
 
 Closed by v2.0.1 and v2.0.2, recorded here because they were real: the ticket
 changing mid-turn when a background notification arrived; an agent's launch stub

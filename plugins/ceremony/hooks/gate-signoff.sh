@@ -114,6 +114,89 @@ ACT4=$(printf '%s' "$MSG" | awk '
 
 CHECK=$(printf '\342\234\223')
 
+# --- the gate agrees its own nouns ------------------------------------------
+# Rule U refuses "<n> thing(s)" in the response, so a gate message that writes
+# it is asking for a discipline it does not keep. plu prints the count and the
+# noun that agrees with it; every message below uses it.
+plu() {
+  # <count> <singular> <plural>
+  case "$1" in
+    1) printf '1 %s' "$2" ;;
+    *) printf '%s %s' "$1" "$3" ;;
+  esac
+}
+
+# --- the backlog, written before anything can stop the turn -----------------
+# The Stop hook is the only one that sees the finished response, and a
+# condition's disposition is decided in the render rather than by any agent, so
+# this is the only place that can know what was carried. It runs here, above
+# every rule and above the correction budget, because a render that says a
+# ticket was filed and a disk that disagrees is the one outcome that must be
+# impossible - and the turn most likely to spend its budget is the blocked one,
+# which is exactly the turn with something to carry.
+#
+# Running it on every path is safe because it is idempotent: both kinds dedupe
+# on what is already on disk, so a correction re-render files nothing twice.
+#
+# Exactly two kinds are written and there is no code path for a third. The
+# first promotes what the ledger already minted; the second reads the MUST
+# conditions the render carried.
+write_backlog() {
+  BLDIR="$CWD/.ceremony"
+  [ -d "$BLDIR" ] || return 0
+  BLF="$BLDIR/backlog.jsonl"
+  HAVE=''
+  [ -f "$BLF" ] && HAVE=$(sed -n 's/.*"id":"\(CER-BL-[0-9]*\)".*/\1/p' "$BLF" 2>/dev/null)
+
+  # 1. restore-verification: minted by the ledger when the sprint rolled.
+  PEND="$BLDIR/$TICKET/carry.jsonl"
+  if [ -f "$PEND" ]; then
+    while IFS= read -r row; do
+      case "$row" in *'"kind":"restore-verification"'*) ;; *) continue ;; esac
+      rid=$(printf '%s' "$row" | sed -n 's/.*"id":"\(CER-BL-[0-9]*\)".*/\1/p')
+      [ -n "$rid" ] || continue
+      case " $(printf '%s' "$HAVE" | tr '\n' ' ') " in *" $rid "*) continue ;; esac
+      printf '%s\n' "$row" >> "$BLF" 2>/dev/null || true
+      HAVE="$HAVE
+$rid"
+    done < "$PEND"
+  fi
+
+  # 2. carried-condition: a board MUST the render answered with `carried`.
+  NCARR=$(printf '%s' "$ACT4" | grep -c 'Disposition: *[0-9][0-9]* *carried' 2>/dev/null) || NCARR=0
+  case "$NCARR" in ''|*[!0-9]*) NCARR=0 ;; esac
+  if [ "$NCARR" -gt 0 ]; then
+    NEXTN=$(printf '%s' "$HAVE" | sed -n 's/CER-BL-0*\([0-9][0-9]*\)/\1/p' | sort -n | tail -n 1)
+    case "$NEXTN" in ''|*[!0-9]*) NEXTN=0 ;; esac
+    SPR=$(sed -n 's/^CEREMONY_SPRINT=//p' "$SENV" 2>/dev/null | tail -n 1)
+    case "$SPR" in ''|*[!0-9]*) SPR=0 ;; esac
+    TSN=$(date +%Y-%m-%dT%H:%M:%S%z 2>/dev/null) || TSN=unknown
+    printf '%s' "$ACT4" | grep 'Disposition: *[0-9][0-9]* *carried' 2>/dev/null |
+    while IFS= read -r dline; do
+      dn=$(printf '%s' "$dline" | sed -n 's/.*Disposition: *\([0-9][0-9]*\).*/\1/p')
+      [ -n "$dn" ] || continue
+      # Only a MUST is carried. The board's own line says which it is.
+      cline=$(printf '%s' "$ACT4" | grep -F "$dn " 2>/dev/null | grep -E '\[MUST\]' | head -n 1)
+      [ -n "$cline" ] || continue
+      EMD=$(printf '\342\200\224')
+      sum=$(printf '%s' "$dline" | sed "s/.*carried *//; s/^$EMD *//; s/^- *//; s/^: *//" |
+        tr -d '\\"' | cut -c1-160)
+      [ -n "$sum" ] || sum="board condition $dn carried to the next sprint"
+      NEXTN=$((NEXTN + 1))
+      cid=$(printf 'CER-BL-%04d' "$NEXTN")
+      # A condition already carried from this ticket is not carried twice.
+      if [ -f "$BLF" ] && grep -q '"kind":"carried-condition"' "$BLF" 2>/dev/null &&
+         grep '"opened_by":"'"$TICKET"'"' "$BLF" 2>/dev/null | grep -qF "$sum" 2>/dev/null; then
+        continue
+      fi
+      printf '{"id":"%s","ts":"%s","kind":"carried-condition","opened_by":"%s","sprint_opened":%s,"summary":"%s","needs":"apply the condition","command":"none","owner":"Change Advisory Board","status":"open"}\n' \
+        "$cid" "$TSN" "$TICKET" "$SPR" "$sum" >> "$BLF" 2>/dev/null || true
+    done
+  fi
+  return 0
+}
+write_backlog 2>/dev/null || true
+
 # ---------------------------------------------------------------------------
 # The two exempt rules, checked before everything else and outside the budget.
 #
@@ -285,7 +368,7 @@ if [ "$NCOND" -gt 0 ]; then
   NDISP=$(printf '%s' "$ACT4" | grep -c 'Disposition: *[0-9]' 2>/dev/null) || NDISP=0
   case "$NDISP" in ''|*[!0-9]*) NDISP=0 ;; esac
   if [ "$NDISP" -lt "$NCOND" ]; then
-    blockc "The Change Advisory Board raised $NCOND condition(s) for $TICKET and act 4 carries $NDISP disposition line(s). A condition nobody answered is decoration, and this ceremony is meant to be something other than decoration.\\n\\nEvery condition gets one line in act 4, numbered to match, in one of exactly three shapes:\\n  Disposition: <n> applied - <what was done>\\n  Disposition: <n> waived - <reason>\\n  Disposition: <n> carried - action item recorded (owner: <who> - due: <when>)\\n\\nA NICE condition may be waived in a few words. A MUST or SHOULD needs a reason with something in it. A carried condition also appears as an act 8 action item, with the same owner and the same due date. If you apply one, the code has moved since the board looked, so convene ceremony:qa again on the code as it now stands and render act 6 from that return.\\n\\n$HATCH"
+    blockc "The Change Advisory Board raised $(plu "$NCOND" condition conditions) for $TICKET and act 4 carries $(plu "$NDISP" 'disposition line' 'disposition lines'). A condition nobody answered is decoration, and this ceremony is meant to be something other than decoration.\\n\\nEvery condition gets one line in act 4, numbered to match, in one of exactly three shapes:\\n  Disposition: <n> applied - <what was done>\\n  Disposition: <n> waived - <reason>\\n  Disposition: <n> carried - action item recorded (owner: <who> - due: <when>)\\n\\nA NICE condition may be waived in a few words. A MUST or SHOULD needs a reason with something in it. A carried condition also appears as an act 8 action item, with the same owner and the same due date. If you apply one, the code has moved since the board looked, so convene ceremony:qa again on the code as it now stands and render act 6 from that return.\\n\\n$HATCH"
   fi
 fi
 
@@ -315,7 +398,7 @@ OPSV=$(printf '%s' "$OPSLAST" | sed -n 's/.*"verdict":"\([^"]*\)".*/\1/p')
 # The ceremony has a role for a blocked toolchain, and asking before convening
 # it is asking the user to do the work of a role that was standing right there.
 if [ "$NBLK" -gt 0 ] && [ -z "$OPSANY" ]; then
-  blockc "Y \\u00b7 QA could not run $NBLK check(s) on $TICKET, and ceremony:devops was never convened. The ceremony has a role for exactly this and it did not sit.\\n\\nA blocked check is an environment problem before it is a user problem: a toolchain that is not installed, a service that is not up, a dependency the project declares and does not have. ceremony:devops is the role that tries to restore it, and it is bounded so that trying cannot run away with the turn - it works only through mechanisms the repository itself defines, it has no write tools at all, it may not kill a process or install a system package, and it stops after 8 commands or 300 seconds whichever comes first.\\n\\nConvene ceremony:devops with the ticket id. Render its return as act 6a \\u00b7 RESTORATION inside act 6. Then:\\n  OPS-RESTORED \\u2192 convene ceremony:qa again so the blocked checks actually run. What ops reports is a claim until QA re-runs it.\\n  OPS-BLOCKED or OPS-NEEDS-CHANGE \\u2192 the plugin decides whether the sprint rolls, and the escalation that reaches the user carries a diagnosis rather than a question.\\n\\nThe user is told what happened. The user is not asked to fix it.\\n\\n$HATCH"
+  blockc "Y \\u00b7 QA could not run $(plu "$NBLK" check checks) on $TICKET, and ceremony:devops was never convened. The ceremony has a role for exactly this and it did not sit.\\n\\nA blocked check is an environment problem before it is a user problem: a toolchain that is not installed, a service that is not up, a dependency the project declares and does not have. ceremony:devops is the role that tries to restore it, and it is bounded so that trying cannot run away with the turn - it works only through mechanisms the repository itself defines, it has no write tools at all, it may not kill a process or install a system package, and it stops after 8 commands or 300 seconds whichever comes first.\\n\\nConvene ceremony:devops with the ticket id. Render its return as act 6a \\u00b7 RESTORATION inside act 6. Then:\\n  OPS-RESTORED \\u2192 convene ceremony:qa again so the blocked checks actually run. What ops reports is a claim until QA re-runs it.\\n  OPS-BLOCKED or OPS-NEEDS-CHANGE \\u2192 the plugin decides whether the sprint rolls, and the escalation that reaches the user carries a diagnosis rather than a question.\\n\\nThe user is told what happened. The user is not asked to fix it.\\n\\n$HATCH"
 fi
 
 # --- Z: a restoration nobody re-verified ------------------------------------
@@ -336,8 +419,11 @@ DEC=$(printf '%s' "$MSG" | grep 'Decision required from the user:' 2>/dev/null |
 if [ -n "$DEC" ]; then
   REST=${DEC#*Decision required from the user:}
   REST=${REST#"${REST%%[! ]*}"}
+  # Case-folded before the match: a sentence that starts with a capital is the
+  # ordinary way to write one, and "None." is the same answer as "none.".
+  REST=$(printf '%s' "$REST" | tr 'A-Z' 'a-z')
   case "$REST" in
-    none|none.*|none[!A-Za-z]*) ;;
+    none|none.*|none[!a-z]*) ;;
     *)
       block "AF \\u00b7 The response asks the user for a decision:\\n  $DEC\\n\\nThat line has one permitted value and it is none. The ceremony was asked to stop escalating its own unfinished business, and this is the line where that shows: by the time the escalation is written, ceremony:devops has already tried the mechanisms this repository defines, the sprint has rolled if a mechanism remained, and what is left is a report.\\n\\nThe line reads exactly:\\n  Decision required from the user: none. This is a report; the ticket stays carried.\\n\\nEverything the user might want to know goes above it - the blocker, the diagnosis with one line per attempt, the mechanisms exhausted, the count of unverified criteria, and the single command from ceremony:devops's CEREMONY-OPS-COMMAND line. Naming that command is not asking for it to be run; it is telling the user what would clear this if they ever want it cleared.\\n\\nThe one thing that legitimately asks the user a question is PO-CLARIFY, and that is about an ambiguous request, not a broken environment.\\n\\n$HATCH" ;;
   esac
@@ -348,11 +434,11 @@ fi
 # it. A turn that absorbed the blockage quietly did neither.
 if [ "$NBLK" -gt 0 ]; then
   if [ "$HASESC" = no ]; then
-    block "L \\u00b7 QA could not run $NBLK check(s) for $TICKET at all - they came back BLOCKED - and the response closes without saying so. A blocked check is not a passed check: an acceptance criterion is currently unverifiable, and the record has to carry that.\\n\\nceremony:devops has already sat on this and the mechanisms it could reach are exhausted, so what goes between act 8 and the closing line is the final-resort escalation, in this shape:\\n\\n\\u2501\\u2501\\u2501 ESCALATION - verification blocked, ceremony exhausted \\u2501\\u2501\\u2501\\nBlocker: <what is missing, in one line>\\nDiagnosis: <why, in one line>\\n  Sprint <n> \\u00b7 DevOps Engineer: <the command> - <what happened>\\nMechanisms exhausted: <the ones tried>. <what remains, or None remaining.>\\nUnverified: <n> acceptance check(s), all [ ] in act 6.\\nThe one command that would clear this:\\n  <the CEREMONY-OPS-COMMAND line, verbatim>\\nBacklog: <CER-BL-id> stays open until it does.\\nDecision required from the user: none. This is a report; the ticket stays carried.\\n\\nOne diagnosis line per ops attempt, quoting the command from its CEREMONY-OPS-TRIED line rather than a paraphrase. Then the closing line carries the verification clause: Work delivered: yes - Verification: blocked (escalated).\\n\\nThis is a report, not a stop and not a question. The work stays delivered, the blocker stays unrepaired, the ticket stays carried, and the turn ends without waiting for anything.\\n\\n$HATCH"
+    block "L \\u00b7 QA could not run $(plu "$NBLK" check checks) for $TICKET at all - they came back BLOCKED - and the response closes without saying so. A blocked check is not a passed check: an acceptance criterion is currently unverifiable, and the record has to carry that.\\n\\nceremony:devops has already sat on this and the mechanisms it could reach are exhausted, so what goes between act 8 and the closing line is the final-resort escalation, in this shape:\\n\\n\\u2501\\u2501\\u2501 ESCALATION - verification blocked, ceremony exhausted \\u2501\\u2501\\u2501\\nBlocker: <what is missing, in one line>\\nDiagnosis: <why, in one line>\\n  Sprint <n> \\u00b7 DevOps Engineer: <the command> - <what happened>\\nMechanisms exhausted: <the ones tried>. <what remains, or None remaining.>\\nUnverified: $(plu "$NBLK" 'acceptance check' 'acceptance checks'), all [ ] in act 6.\\nThe one command that would clear this:\\n  <the CEREMONY-OPS-COMMAND line, verbatim>\\nBacklog: <CER-BL-id> stays open until it does.\\nDecision required from the user: none. This is a report; the ticket stays carried.\\n\\nOne diagnosis line per ops attempt, quoting the command from its CEREMONY-OPS-TRIED line rather than a paraphrase. Then the closing line carries the verification clause: Work delivered: yes - Verification: blocked (escalated).\\n\\nThis is a report, not a stop and not a question. The work stays delivered, the blocker stays unrepaired, the ticket stays carried, and the turn ends without waiting for anything.\\n\\n$HATCH"
   fi
   case "$MSG" in
     *'Verification: blocked'*) ;;
-    *) block "The response escalates a blocked verification and its closing line still reads as though everything was checked. With $NBLK blocked check(s) on the record, the closing line ends: Work delivered: yes - Verification: blocked (escalated).\\n\\nThe work may well be delivered. It is the verification that is missing, and the closing line is where that is said.\\n\\n$HATCH" ;;
+    *) block "The response escalates a blocked verification and its closing line still reads as though everything was checked. With $(plu "$NBLK" 'blocked check' 'blocked checks') on the record, the closing line ends: Work delivered: yes - Verification: blocked (escalated).\\n\\nThe work may well be delivered. It is the verification that is missing, and the closing line is where that is said.\\n\\n$HATCH" ;;
   esac
 elif [ "$HASESC" = yes ]; then
   block "The response carries an escalation block for $TICKET and nothing on the ledger is blocked: QA recorded no BLOCKED check this turn. An escalation with nothing to escalate asks the user for a decision they do not have to make.\\n\\nRemove the escalation block and the Verification clause from the closing line. The closing line keeps its four clauses, ending Work delivered: yes.\\n\\n$HATCH"
@@ -415,13 +501,13 @@ if [ -n "$IMPLLINE" ]; then
     C2=$(num_or_zero "$(printf '%s' "$CN" | cut -d' ' -f2)")
     C3=$(num_or_zero "$(printf '%s' "$CN" | cut -d' ' -f3)")
     if [ "$C1" != "$MFILES" ] || [ "$C2" != "$MADDED" ] || [ "$C3" != "$MREMOVED" ]; then
-      note "O \\u00b7 The response reports the size of the change as $C1 file(s), +$C2 -$C3. The ledger measured $MFILES file(s), +$MADDED -$MREMOVED, counted from the tool calls the engineer actually made rather than from its description of them.\\n\\nQuote the ledger's numbers, in act 5 and on the act 7 engineer line: Engineer \\u2014 implemented ($ENGV, ceremony:engineer) \\u00b7 $MFILES files, +$MADDED -$MREMOVED. Where the engineer's own CEREMONY-DIFF line disagrees with the measurement, the measurement is what is written and the disagreement is worth a sentence in act 5."
+      note "O \\u00b7 The response reports the size of the change as $(plu "$C1" file files), +$C2 -$C3. The ledger measured $(plu "$MFILES" file files), +$MADDED -$MREMOVED, counted from the tool calls the engineer actually made rather than from its description of them.\\n\\nQuote the ledger's numbers, in act 5 and on the act 7 engineer line: Engineer \\u2014 implemented ($ENGV, ceremony:engineer) \\u00b7 $MFILES files, +$MADDED -$MREMOVED. Where the engineer's own CEREMONY-DIFF line disagrees with the measurement, the measurement is what is written and the disagreement is worth a sentence in act 5."
     fi
   elif [ "$MFILES" -gt 0 ]; then
     # The other direction. A render that prints no counts at all is not a
     # cautious render: the measurement exists, act 5 and act 7 are where it is
     # quoted, and leaving it out is the same defect as inventing one.
-    note "O \\u00b7 The ledger measured $MFILES file(s), +$MADDED -$MREMOVED on $TICKET and the response quotes no counts anywhere in act 5 or act 7.\\n\\nThe numbers are not optional and they are not yours to compose. Act 5 carries: Changed: $MFILES file(s), +$MADDED \\u2212$MREMOVED. The act 7 engineer line carries: Engineer \\u2014 implemented ($ENGV, ceremony:engineer) \\u00b7 $MFILES files, +$MADDED \\u2212$MREMOVED. Both come from the implementation entry on the ledger, which the plugin measured by diffing the working tree before and after the engineer ran."
+    note "O \\u00b7 The ledger measured $(plu "$MFILES" file files), +$MADDED -$MREMOVED on $TICKET and the response quotes no counts anywhere in act 5 or act 7.\\n\\nThe numbers are not optional and they are not yours to compose. Act 5 carries: Changed: $(plu "$MFILES" file files), +$MADDED \\u2212$MREMOVED. The act 7 engineer line carries: Engineer \\u2014 implemented ($ENGV, ceremony:engineer) \\u00b7 $MFILES files, +$MADDED \\u2212$MREMOVED. Both come from the implementation entry on the ledger, which the plugin measured by diffing the working tree before and after the engineer ran."
   fi
 fi
 
@@ -449,7 +535,7 @@ if [ "$ENGV" = MALFORMED ]; then
   if [ "$EEDITS" -gt 0 ]; then
     case "$MSG" in
       *"The engineer's return could not be read."*) ;;
-      *) note "Q \\u00b7 ceremony:engineer's return could not be read - its closing line was not one of ENG-IMPLEMENTED, ENG-BLOCKED or ENG-NO-CHANGE - and it changed $EEDITS file(s) before returning. The change is in the tree; the account of it is not on the record.\\n\\nAct 5 carries this line, exactly: The engineer's return could not be read. $EEDITS file(s) were changed by it; what was intended is not on the record.\\n\\nThen describe the diff you read yourself. Do not reconstruct the engineer's intent from the code; the point of the line is that it is unknown." ;;
+      *) note "Q \\u00b7 ceremony:engineer's return could not be read - its closing line was not one of ENG-IMPLEMENTED, ENG-BLOCKED or ENG-NO-CHANGE - and it changed $(plu "$EEDITS" file files) before returning. The change is in the tree; the account of it is not on the record.\\n\\nAct 5 carries this line, exactly: The engineer's return could not be read. It changed $(plu "$EEDITS" file files); what was intended is not on the record.\\n\\nThen describe the diff you read yourself. Do not reconstruct the engineer's intent from the code; the point of the line is that it is unknown." ;;
     esac
   fi
 fi
@@ -465,7 +551,7 @@ if [ "$REVV" = REV-DEVIATES ] || [ "$REVV" = REV-INCOMPLETE ] || [ "$RDEV" -gt 0
   DEVSAY='is missing'
   if printf '%s' "$ACT5" | grep -q 'Deviations' 2>/dev/null; then HASDEV=yes; DEVSAY='is present'; fi
   if [ "$HASDEV" = no ] || [ "$NDEV" -lt "$RDEV" ]; then
-    note "R \\u00b7 ceremony:reviewer returned $REVV on $TICKET: $RUNMET criterion/criteria unmet and $REXTRA change(s) nothing asked for. Act 5 carries $NDEV of those $RDEV line(s), and the Deviations subsection $DEVSAY.\\n\\nAct 5 ends with a Deviations subsection, one line per finding, quoting the reviewer's own CEREMONY-CRIT lines:\\n  - <n> UNMET \\u00b7 <the criterion> \\u2014 <what is missing>\\n  - <n> EXTRA \\u00b7 <what was changed> \\u2014 <file:line>\\n\\nAn EXTRA is not an accusation and an UNMET is not a failure of the turn; both are the record saying what the diff does that the ticket did not ask for, or does not do that it did. And while any of them stands, the Product Owner line in act 7 withholds: the criteria are the Product Owner's, and they have not all been met."
+    note "R \\u00b7 ceremony:reviewer returned $REVV on $TICKET: $(plu "$RUNMET" criterion criteria) unmet and $(plu "$REXTRA" change changes) nothing asked for. Act 5 carries $NDEV of those $(plu "$RDEV" line lines), and the Deviations subsection $DEVSAY.\\n\\nAct 5 ends with a Deviations subsection, one line per finding, quoting the reviewer's own CEREMONY-CRIT lines:\\n  - <n> UNMET \\u00b7 <the criterion> \\u2014 <what is missing>\\n  - <n> EXTRA \\u00b7 <what was changed> \\u2014 <file:line>\\n\\nAn EXTRA is not an accusation and an UNMET is not a failure of the turn; both are the record saying what the diff does that the ticket did not ask for, or does not do that it did. And while any of them stands, the Product Owner line in act 7 withholds: the criteria are the Product Owner's, and they have not all been met."
   fi
 fi
 
@@ -490,7 +576,7 @@ if [ -n "$REVV" ] && [ "$REVV" != REV-NOTHING-TO-REVIEW ]; then
   NAC=$(num_or_zero "$(led_num product-owner ac)")
   NCRIT=$(num_or_zero "$(led_num reviewer crit)")
   if [ "$NAC" -gt 0 ] && [ "$NCRIT" -lt "$NAC" ]; then
-    note "S \\u00b7 The reviewer answered $NCRIT of $NAC criteria. The Product Owner recorded $NAC CEREMONY-AC lines on $TICKET and ceremony:reviewer returned $NCRIT CEREMONY-CRIT lines against them, so $((NAC - NCRIT)) criterion/criteria went unexamined.\\n\\nEither convene ceremony:reviewer again with a brief naming the criteria it did not answer, or withhold its line and the Product Owner's: an unexamined criterion is not a met one. Whichever you choose, act 5a says how many of the criteria were actually reviewed."
+    note "S \\u00b7 The reviewer answered $NCRIT of $NAC criteria. The Product Owner recorded $NAC CEREMONY-AC lines on $TICKET and ceremony:reviewer returned $NCRIT CEREMONY-CRIT lines against them, so $(plu "$((NAC - NCRIT))" criterion criteria) went unexamined.\\n\\nEither convene ceremony:reviewer again with a brief naming the criteria it did not answer, or withhold its line and the Product Owner's: an unexamined criterion is not a met one. Whichever you choose, act 5a says how many of the criteria were actually reviewed."
   fi
 fi
 
@@ -569,7 +655,7 @@ fi
 NIMPL=$(printf '%s' "$MINE" | grep -c '"role":"implementation"' 2>/dev/null) || NIMPL=0
 NIMPL=$(num_or_zero "$NIMPL")
 if [ "$REVV" = REV-NOTHING-TO-REVIEW ] && [ "$NIMPL" -gt 0 ]; then
-  note "AH \\u00b7 ceremony:reviewer returned REV-NOTHING-TO-REVIEW and the ledger holds $NIMPL implementation entry/entries for $TICKET. Those two cannot both be true: something was written, and the review says there was nothing to read.\\n\\nWhat is usually missing is the measurement rather than the change. .ceremony/$TICKET/implementation.diff is written from two git tree snapshots, so it does not exist in a directory that is not a git repository, and it does not exist when the file the engineer wrote is gitignored. Neither of those means nothing happened.\\n\\nConvene ceremony:reviewer again and tell it, in its brief, that implementation.diff is unavailable and that the files are named on the implementation entries of .ceremony/$TICKET/ledger.jsonl. It reviews those files against the criteria and returns an ordinary verdict. REV-NOTHING-TO-REVIEW is correct at zero implementation entries and at no other count."
+  note "AH \\u00b7 ceremony:reviewer returned REV-NOTHING-TO-REVIEW and the ledger holds $(plu "$NIMPL" 'implementation entry' 'implementation entries') for $TICKET. Those two cannot both be true: something was written, and the review says there was nothing to read.\\n\\nWhat is usually missing is the measurement rather than the change. .ceremony/$TICKET/implementation.diff is written from two git tree snapshots, so it does not exist in a directory that is not a git repository, and it does not exist when the file the engineer wrote is gitignored. Neither of those means nothing happened.\\n\\nConvene ceremony:reviewer again and tell it, in its brief, that implementation.diff is unavailable and that the files are named on the implementation entries of .ceremony/$TICKET/ledger.jsonl. It reviews those files against the criteria and returns an ordinary verdict. REV-NOTHING-TO-REVIEW is correct at zero implementation entries and at no other count."
 fi
 
 # --- AA: act 7 is ten lines now ---------------------------------------------
@@ -604,7 +690,7 @@ if [ -n "$OPSLINE" ]; then
     OPS-NOTHING-TO-DO) OWANT='nothing to restore' ;;
   esac
   if [ -n "$OTOK" ] && [ -n "$OSHAPE" ] && [ "$OSHAPE" != "$OWANT" ]; then
-    note "AB \\u00b7 The DevOps Engineer line reads \\\"$OSHAPE\\\" and quotes $OTOK, and those are two different outcomes. The line is one of exactly five, and the verdict picks which:\\n\\n  DevOps Engineer \\u2014 restored (OPS-RESTORED, ceremony:devops) \\u00b7 <n> mechanism(s)\\n  DevOps Engineer \\u2014 not restored (OPS-BLOCKED, ceremony:devops) \\u00b7 <n> attempted\\n  DevOps Engineer \\u2014 change required (OPS-NEEDS-CHANGE, ceremony:devops) \\u00b7 <file> proposed\\n  DevOps Engineer \\u2014 nothing to restore (OPS-NOTHING-TO-DO, ceremony:devops) \\u00b7 0 attempted\\n  DevOps Engineer \\u2014 withheld (role not convened)\\n\\n$OTOK takes the line that reads \\\"$OWANT\\\". None of them carries a tick, on any turn: ops restores, it does not approve, and the signature that matters after a restoration is QA's."
+    note "AB \\u00b7 The DevOps Engineer line reads \\\"$OSHAPE\\\" and quotes $OTOK, and those are two different outcomes. The line is one of exactly five, and the verdict picks which:\\n\\n  DevOps Engineer \\u2014 restored (OPS-RESTORED, ceremony:devops) \\u00b7 <n> mechanisms\\n  DevOps Engineer \\u2014 not restored (OPS-BLOCKED, ceremony:devops) \\u00b7 <n> attempted\\n  DevOps Engineer \\u2014 change required (OPS-NEEDS-CHANGE, ceremony:devops) \\u00b7 <file> proposed\\n  DevOps Engineer \\u2014 nothing to restore (OPS-NOTHING-TO-DO, ceremony:devops) \\u00b7 0 attempted\\n  DevOps Engineer \\u2014 withheld (role not convened)\\n\\n$OTOK takes the line that reads \\\"$OWANT\\\". The angle-bracket slots are filled from the ledger and the nouns agree with what fills them: 1 mechanism, 2 mechanisms, and the file named on ceremony:devops's CEREMONY-OPS-CHANGE line. None of the five carries a tick, on any turn: ops restores, it does not approve, and the signature that matters after a restoration is QA's."
   fi
   case "$OPSLINE" in
     *"$CHECK"*)
@@ -653,7 +739,7 @@ ROLLED=$(sed -n 's/^CEREMONY_ROLLED=//p' "$SENV" 2>/dev/null | tail -n 1)
 SHOWN=no
 printf '%s' "$MSG" | grep -qE 'SPRINT [0-9]+ CLOSED|opened in session' 2>/dev/null && SHOWN=yes
 if [ "$ROLLED" = yes ] && [ "$SHOWN" = no ]; then
-  note "AE \\u00b7 The sprint rolled and the response does not say so. The plugin incremented .ceremony/sprint-offset this turn and minted $CARRIED, because ceremony:devops named a mechanism nobody had tried.\\n\\nRender the roll between act 8 and the closing line, in this shape:\\n\\n\\u2501\\u2501\\u2501 SPRINT <n> CLOSED \\u00b7 carried \\u2501\\u2501\\u2501\\nCarried: $CARRIED \\u00b7 restore-verification \\u00b7 <the blocker in one line>\\nVerification withheld: <n> check(s). QA-BLOCKED stands; no signature was invented.\\n\\n\\u2501\\u2501\\u2501 SPRINT <n+1> \\u00b7 opened in session \\u00b7 day 1 of 14 \\u2501\\u2501\\u2501\\nPlanning: $CARRIED (<n> pts) - the only item. Scope unchanged from $TICKET.\\nDevOps Engineer \\u00b7 attempt 2 \\u00b7 mechanism: <the one named next> - <its verdict>\\nQA Sign-off Officer \\u00b7 re-run \\u00b7 <what came back>\\nSprint <n+1> closed. <whether a mechanism remains>\\n\\nThe next sprint is one iteration of the loop, not a second ceremony: ops attempt 2 and a QA re-run, and not eight more acts."
+  note "AE \\u00b7 The sprint rolled and the response does not say so. The plugin incremented .ceremony/sprint-offset this turn and minted $CARRIED, because ceremony:devops named a mechanism nobody had tried.\\n\\nRender the roll between act 8 and the closing line, in this shape:\\n\\n\\u2501\\u2501\\u2501 SPRINT <n> CLOSED \\u00b7 carried \\u2501\\u2501\\u2501\\nCarried: $CARRIED \\u00b7 restore-verification \\u00b7 <the blocker in one line>\\nVerification withheld: $(plu "$NBLK" check checks). QA-BLOCKED stands; no signature was invented.\\n\\n\\u2501\\u2501\\u2501 SPRINT <n+1> \\u00b7 opened in session \\u00b7 day 1 of 14 \\u2501\\u2501\\u2501\\nPlanning: $CARRIED (<n> pts) - the only item. Scope unchanged from $TICKET.\\nDevOps Engineer \\u00b7 attempt 2 \\u00b7 mechanism: <the one named next> - <its verdict>\\nQA Sign-off Officer \\u00b7 re-run \\u00b7 <what came back>\\nSprint <n+1> closed. <whether a mechanism remains>\\n\\nThe next sprint is one iteration of the loop, not a second ceremony: ops attempt 2 and a QA re-run, and not eight more acts."
 fi
 if [ "$ROLLED" = no ] && [ "$SHOWN" = yes ]; then
   note "AE \\u00b7 The response renders a sprint roll and no roll happened. .ceremony/sprint-offset was not incremented on this turn, so the sprint number in the header is the one the ceremony is really on and there is no closed sprint to report.\\n\\nThe loop advances only on a mechanism nobody has tried. The plugin decides that, from ceremony:devops's CEREMONY-OPS-NEXT line, and it writes the offset itself: a roll you narrate is a sprint number that exists only in the prose, and the next turn will not agree with it. With CEREMONY-OPS-NEXT: none there is no roll - the escalation goes to the user as a report and the ticket stays carried where it is."
@@ -665,6 +751,47 @@ if [ -n "$QALAST" ]; then
   QBASH=$(num_or_zero "$(printf '%s' "$QALAST" | sed -n 's/.*"bash":\([0-9][0-9]*\).*/\1/p' | head -n 1)")
   if [ "$QATT" -ge 2 ] && [ "$QBASH" -eq 0 ]; then
     note "AG \\u00b7 QA attempt $QATT ran no commands at all. The platform counted 0 Bash calls on that return, and a Definition of Done assessed without running anything is a reading of the previous run.\\n\\nA re-run after OPS-RESTORED exists to execute the checks that were BLOCKED, with the environment as it now stands. If they were re-executed the tool statistics would say so. Convene ceremony:qa again with the blocked items named as its scope and the instruction that the earlier run's results are not to be reused, and render act 6 from what comes back.\\n\\nIf the checks genuinely cannot be run even now, that is QA-BLOCKED with a command and a failure beside each item, which is a different answer and an honest one."
+  fi
+fi
+
+# --- AI: an execution failure that reached the record as something else -----
+# The ops lane opens on the blocked count and on nothing else, so the count is
+# load-bearing: an environment failure written as FAIL, or as an unticked skip,
+# closes the one lane that could have repaired it. QA is given a mechanical
+# rule - a check that could not execute is BLOCKED - and this is the same rule
+# read off the render. The markers are quoted from the tool output, so a body
+# that carries one while the ledger counts no blocked check is the two
+# disagreeing about what happened.
+if [ -n "$QALAST" ] && [ "$NBLK" -eq 0 ]; then
+  ACT6=$(printf '%s' "$MSG" | awk 'index(tolower($0), "definition of done") { f = 1 } f { print }' 2>/dev/null)
+  EXFAIL=$(printf '%s' "$ACT6" |
+    grep -oiE 'command not found|no such file or directory|connection refused|failed to connect|couldn.t connect|no version is set|address already in use|permission denied|modulenotfounderror|cannot find module|could not find a mix.project|exit (code |status )?12[67]' 2>/dev/null |
+    tr 'A-Z' 'a-z' | sort -u | tr '\n' '@' | sed 's/@$//; s/@/, /g')
+  if [ -n "$EXFAIL" ]; then
+    note "AI \\u00b7 Act 6 quotes an execution failure and the ledger records no blocked check. The evidence carries: $EXFAIL. QA returned blocked: 0.\\n\\nThose are two different claims about the same run. The line between them is mechanical and it is not a matter of phrasing: BLOCKED means the check could not execute, FAIL means it executed and the result contradicts the criterion. A missing command, a refused connection, a version manager with nothing selected, a port already held - none of them produced a statement about the code, so none of them is a FAIL and none of them is a skip.\\n\\nIt matters because ceremony:devops is convened on the blocked count and on nothing else. Recorded as anything else, an environment failure closes the one lane that could have repaired it, and the turn goes to the user with a verdict about code that was never run.\\n\\nConvene ceremony:qa again and tell it, in the brief, that a check which could not execute is BLOCKED with the command and the failure beside it. Render act 6 from that return. If the blocked count then rises above zero, the ops lane opens on its own and the rest follows."
+  fi
+fi
+
+# --- AJ: a signature disclaimed for no reason on the record -----------------
+# Rule A reads tokens in both directions and rule B reads the ticked ones, so
+# the one shape neither judges is a signing token inside a withheld bracket.
+# It is often correct - a blocked engineer withholds every line, a reviewer's
+# deviation withholds the Product Owner's - so this fires only on the turn
+# where nothing at all explains it: implemented, reviewed clean, verified, no
+# condition carried. On that turn a withheld signature is either a line copied
+# from the wrong shape or a signature the record supports and the render denies,
+# and both are worth one sentence.
+QAV=$(printf '%s' "$QALAST" | sed -n 's/.*"verdict":"\([^"]*\)".*/\1/p' | head -n 1)
+if [ "$ENGV" = ENG-IMPLEMENTED ] && [ "$RDEV" -eq 0 ] && [ "$NBLK" -eq 0 ] &&
+   [ "$QAV" = QA-PASS ] && [ "$REVV" = REV-MATCHES-CRITERIA ] &&
+   ! printf '%s' "$ACT4" | grep -q 'Disposition: *[0-9]* *carried' 2>/dev/null; then
+  DISC=''
+  for tok in $SIGNING; do
+    printf '%s' "$ACT7" | grep 'withheld' 2>/dev/null | grep -q "($tok)" 2>/dev/null &&
+      DISC="$DISC $tok"
+  done
+  if [ -n "$DISC" ]; then
+    note "AJ \\u00b7 Act 7 withholds a line and quotes a signing token in its brackets:$DISC.\\n\\nThe agent returned that token, so the token is real; what the line then says is that the ceremony is declining to stand behind it. On this turn nothing on the record supports that. The engineer implemented, the reviewer found no deviation, QA returned QA-PASS and no condition was carried, so there is nothing left for the signature to be waiting on.\\n\\nA withheld line quotes the token that withholds - PO-CLARIFY, REV-DEVIATES, QA-FAIL, ENG-BLOCKED and their kind - or reads withheld (role not convened) when the role did not sit. A ticked line quotes the token that signs. What does not exist is a line that quotes a signing token and then refuses it: either the tick belongs there, or something on the record says why it does not and that reason is written in the act it belongs to."
   fi
 fi
 
@@ -687,7 +814,7 @@ fi
 # Multi-word lowercase slots and a closed list of single-word ones. An HTML tag
 # is either one word or carries attributes with = and quotes in it, so neither
 # shape reaches this: a turn about <button> is about a button.
-PLACE=$(printf '%s' "$MSG" | grep -oE '<[a-z]+( [a-z]+)+>|<pts>|<n>|<role>|<ticket>|<token>|<path>|ADR-NNNN|ADR-0000|CHG-NNNN|CHG-NNNNNNNN|CER-NNN' 2>/dev/null | sort -u | tr '\n' ' ')
+PLACE=$(printf '%s' "$MSG" | grep -oE '<[a-z]+( [a-z]+)+>|<pts>|<n>|<role>|<ticket>|<token>|<path>|<file>|ADR-NNNN|ADR-0000|CHG-NNNN|CHG-NNNNNNNN|CER-NNN' 2>/dev/null | sort -u | tr '\n' ' ')
 if [ -n "$PLACE" ]; then
   note "U \\u00b7 The response ships a template placeholder it never filled in: $PLACE.\\n\\nEvery angle-bracket slot in the format is a hole for a real value, and a response that prints the hole is describing the format instead of using it. The ADR number is the next unused one under docs/adr/ or ADR-0001 when there are none; the change reference is on the record in the turn state; the decision title is the decision. If a value genuinely is not available, say so in words - there is no placeholder that means unknown."
 fi
@@ -710,70 +837,6 @@ if [ -n "$NOTES" ]; then
   blockc "The chain of four eyes is not complete on this turn. Everything below is wrong with it; fix all of it in one re-render.\\n\\n$NOTES\\n\\nThe chain, for reference: PO(criteria) \\u2192 Engineer(author) \\u2192 Chair(diff) \\u2192 Reviewer(criteria) \\u2192 CAB(risk) \\u2192 QA(execution). Each of the six looks at something the one before it could not.\\n\\n$HATCH"
 fi
 
-# --- the backlog, written once, on the way out ------------------------------
-# This runs after every rule has passed and nowhere else. The Stop hook is the
-# only one that sees the finished response, and a condition's disposition is
-# decided in the render rather than by any agent, so this is the only place that
-# can know what was carried. Writing here also means a turn that was sent back
-# for a correction files nothing: at most one pass per turn, so a re-render
-# cannot double-file.
-#
-# Exactly two kinds are written and there is no code path for a third. The
-# first promotes what the ledger already minted; the second reads the MUST
-# conditions the render carried. Both dedupe on the id.
-write_backlog() {
-  BLDIR="$CWD/.ceremony"
-  [ -d "$BLDIR" ] || return 0
-  BLF="$BLDIR/backlog.jsonl"
-  HAVE=''
-  [ -f "$BLF" ] && HAVE=$(sed -n 's/.*"id":"\(CER-BL-[0-9]*\)".*/\1/p' "$BLF" 2>/dev/null)
-
-  # 1. restore-verification: minted by the ledger when the sprint rolled.
-  PEND="$BLDIR/$TICKET/carry.jsonl"
-  if [ -f "$PEND" ]; then
-    while IFS= read -r row; do
-      case "$row" in *'"kind":"restore-verification"'*) ;; *) continue ;; esac
-      rid=$(printf '%s' "$row" | sed -n 's/.*"id":"\(CER-BL-[0-9]*\)".*/\1/p')
-      [ -n "$rid" ] || continue
-      case " $(printf '%s' "$HAVE" | tr '\n' ' ') " in *" $rid "*) continue ;; esac
-      printf '%s\n' "$row" >> "$BLF" 2>/dev/null || true
-      HAVE="$HAVE
-$rid"
-    done < "$PEND"
-  fi
-
-  # 2. carried-condition: a board MUST the render answered with `carried`.
-  NCARR=$(printf '%s' "$ACT4" | grep -c 'Disposition: *[0-9][0-9]* *carried' 2>/dev/null) || NCARR=0
-  case "$NCARR" in ''|*[!0-9]*) NCARR=0 ;; esac
-  if [ "$NCARR" -gt 0 ]; then
-    NEXTN=$(printf '%s' "$HAVE" | sed -n 's/CER-BL-0*\([0-9][0-9]*\)/\1/p' | sort -n | tail -n 1)
-    case "$NEXTN" in ''|*[!0-9]*) NEXTN=0 ;; esac
-    SPR=$(sed -n 's/^CEREMONY_SPRINT=//p' "$SENV" 2>/dev/null | tail -n 1)
-    case "$SPR" in ''|*[!0-9]*) SPR=0 ;; esac
-    TSN=$(date +%Y-%m-%dT%H:%M:%S%z 2>/dev/null) || TSN=unknown
-    printf '%s' "$ACT4" | grep 'Disposition: *[0-9][0-9]* *carried' 2>/dev/null |
-    while IFS= read -r dline; do
-      dn=$(printf '%s' "$dline" | sed -n 's/.*Disposition: *\([0-9][0-9]*\).*/\1/p')
-      [ -n "$dn" ] || continue
-      # Only a MUST is carried. The board's own line says which it is.
-      cline=$(printf '%s' "$ACT4" | grep -F "$dn " 2>/dev/null | grep -E '\[MUST\]' | head -n 1)
-      [ -n "$cline" ] || continue
-      sum=$(printf '%s' "$dline" | sed 's/.*carried *[-\342\200\224]* *//' | tr -d '\\"' | cut -c1-160)
-      [ -n "$sum" ] || sum="board condition $dn carried to the next sprint"
-      NEXTN=$((NEXTN + 1))
-      cid=$(printf 'CER-BL-%04d' "$NEXTN")
-      # A condition already carried from this ticket is not carried twice.
-      if [ -f "$BLF" ] && grep -q '"kind":"carried-condition"' "$BLF" 2>/dev/null &&
-         grep '"opened_by":"'"$TICKET"'"' "$BLF" 2>/dev/null | grep -qF "$sum" 2>/dev/null; then
-        continue
-      fi
-      printf '{"id":"%s","ts":"%s","kind":"carried-condition","opened_by":"%s","sprint_opened":%s,"summary":"%s","needs":"apply the condition","command":"none","owner":"Change Advisory Board","status":"open"}\n' \
-        "$cid" "$TSN" "$TICKET" "$SPR" "$sum" >> "$BLF" 2>/dev/null || true
-    done
-  fi
-  return 0
-}
-
 # --- H: the request handed back instead of answered -------------------------
 # A response with no ceremony bar anywhere, listing the ways out of the plugin,
 # ending on a question. That shape is the request being returned to the sender.
@@ -786,9 +849,5 @@ if ! printf '%s' "$MSG" | grep -q 'CEREMONY ' 2>/dev/null; then
     esac
   fi
 fi
-
-# Every rule passed. This is the pass path and the only one the backlog is
-# written from.
-write_backlog 2>/dev/null || true
 
 exit 0

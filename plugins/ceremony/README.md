@@ -158,9 +158,20 @@ conditions against the dispositions. Applying one moves the code after the board
 looked, so QA sits a second time on the code as it now stands: an applied
 condition is one extra agent, and that is the price of acting on advice.
 
-When QA marks any check `BLOCKED` — a missing toolchain, a start command that is
-not there — the ceremony convenes `ceremony:devops` before it says anything to
-you. It works only through mechanisms the repository defines — the justfile, the
+`BLOCKED` and `FAIL` are decided mechanically, not by feel: a check that could
+not execute — command not found, toolchain unselected, connection refused, a
+port held by a foreign process — is `BLOCKED`, and `FAIL` is reserved for a
+check that ran and contradicted the criterion. That line is load-bearing,
+because the ops lane opens on the blocked count and on nothing else.
+
+QA never repairs what a check found, and neither does the Engineer: QA checks a
+service it did not start, the Engineer writes code and does not stand up
+infrastructure, and a service that is down is a `BLOCKED` item naming the
+project's own start command. Starting services belongs to one role, and it is
+not one of the roles that sign.
+
+When QA marks any check `BLOCKED`, the ceremony convenes `ceremony:devops`
+before it says anything to you. It works only through mechanisms the repository defines — the justfile, the
 Procfile, `.mise.toml`, the package scripts, the Makefile, the compose file, the
 language manifest — under a timebox of eight commands and 300 seconds. It has no
 write tools, it may not kill a process the process manager owns, and it may not
@@ -170,7 +181,9 @@ If it restores the environment, QA re-runs the blocked items for real. If it
 does not but names a mechanism nobody has tried, the sprint **rolls**: the
 ticket is carried to a backlog entry, sprint N+1 opens in the same session, and
 ops gets a second attempt followed by another QA re-run. Two rolls per session,
-and three independent stops, so it is a loop rather than a busy loop.
+and three independent stops, so it is a loop rather than a busy loop. No sprint
+ever rolls carrying nothing, and the entry reaches disk on every path a turn can
+take — including the one where the correction budget ran out.
 
 Only when the lane is exhausted does the escalation fire, and it ends
 `Decision required from the user: none. This is a report; the ticket stays
@@ -249,10 +262,13 @@ and converted into action items (owner: unassigned, due: next sprint).
   and it means a stray token elsewhere is not checked either. A split render is
   also how an act headed by an agent that never ran gets past the check:
   measured at roughly one turn in nine on smaller models.
-- QA's start command can outlive the check through its own children. The
-  served-artifact check starts the project's own command under `timeout`, so the
-  command itself ends by itself; a start script that spawns background children
-  can leave those behind. No leak was observed in the most recent round.
+- The Bash gate reads command position, so a forbidden verb survives a wrapper.
+  `kill`, `pkill`, `docker stop` and the system package managers are refused
+  where a command starts, and `xargs`, `nohup`, `timeout`, `command`, `sudo` and
+  a `VAR=value` prefix are seen through — but a verb inside a quoted argument is
+  not: `bash -c 'kill 1'`, `eval`, `python3 -c`, an absolute path and a command
+  substitution all pass. It is a fence for a role that is not trying to climb
+  it; `ceremony:devops` has no write tools at all.
 - Where `implementation.diff` cannot be produced, the measurement is missing and
   the counts read zero. The file is written from two git tree snapshots, so a
   directory that is not a git repository has none, and neither does a change
@@ -286,6 +302,12 @@ Closed by v2.3.0: a ceremony that hit a missing toolchain in QA and ended by
 asking the user to install it. The ops lane sits first, the sprint loop gives an
 untried mechanism a second attempt inside the same session, and the last line of
 the escalation is now fixed at `Decision required from the user: none.`
+
+Closed by v2.3.1: a render that said a ticket was filed while the disk held
+nothing, because the write sat below the correction budget; a QA brief that told
+QA to start the service it was about to check, which kept the ops lane shut in
+the runs that needed it most; and an environment failure recorded as a `FAIL`,
+which put the lane out of reach by wording alone.
 
 `.ceremony/` appears the first time a turn changes a file. It ignores itself,
 arms nothing on its own, and `/ceremony:disband` removes the ticket records

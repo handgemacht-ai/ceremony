@@ -430,8 +430,10 @@ no ADR number — the line says that in words. `ADR-0000 · <decision title>` sa
 nothing; `no ADR: no Architect was convened on a 2-point ticket` says the thing.
 
 Counts agree with their nouns. `1 file`, `2 files`; `1 ticket`, `3 tickets`;
-`1 criterion`, `4 criteria`. `1 files` is a defect in the render and is checked
-as one.
+`1 criterion`, `4 criteria`. A plural noun after the number one is a defect in
+the render and is checked as one, and so is a hedged `(s)` left standing: the
+brackets belong to the agent templates, which are written before the count is
+known, and by the time the response is rendered the count is on the ledger.
 
 ## Act 7 · Sign-off
 
@@ -528,9 +530,9 @@ change is checked on, and a restored environment is not a verdict about the
 work. Its line carries no ✓ in any outcome, and it has five shapes:
 
 ```text
-DevOps Engineer — restored (OPS-RESTORED, ceremony:devops) · 2 mechanism(s)
+DevOps Engineer — restored (OPS-RESTORED, ceremony:devops) · 2 mechanisms
 DevOps Engineer — not restored (OPS-BLOCKED, ceremony:devops) · 2 attempted
-DevOps Engineer — change required (OPS-NEEDS-CHANGE, ceremony:devops) · <file> proposed
+DevOps Engineer — change required (OPS-NEEDS-CHANGE, ceremony:devops) · .mise.toml proposed
 DevOps Engineer — nothing to restore (OPS-NOTHING-TO-DO, ceremony:devops)
 DevOps Engineer — withheld (role not convened)
 ```
@@ -539,11 +541,17 @@ DevOps Engineer — withheld (role not convened)
 sign-off that ticks QA on the strength of a restoration has signed for a run
 that never happened.
 
-A `CER-BL-` id appears on that line only when the plugin actually minted one,
-which happens on a sprint roll and at no other time. `OPS-NEEDS-CHANGE` names
-the file the change belongs in and the proposal goes under *Proposed backlog
-(not filed)*: the fix is a ticket for `ceremony:engineer`, groomed like any
-other, and the ceremony does not open it on the user's behalf.
+None of the five shapes carries a `CER-BL-` id. The id, when the plugin minted
+one, belongs on the *Carried* line of the sprint-roll block and in the
+escalation, and nowhere else.
+
+`OPS-NEEDS-CHANGE` names the file the change belongs in, taken from ops's
+`CEREMONY-OPS-CHANGE` line. The change is not made this turn: ops has no write
+tools, and the engineer's scope is the user's request rather than the machine it
+runs on. So the plugin files it — a `restore-verification` entry whose `needs`
+is the proposed change and whose `command` is what would clear it. It is
+carried, not proposed. Verification stopped short of the user's request, which
+is the whole of what the backlog is for.
 
 ### The Engineer line
 
@@ -847,7 +855,7 @@ follow the verdict:
 | Verdict | What happens next |
 |---|---|
 | `OPS-RESTORED` | convene `ceremony:qa` again. The blocked items are re-executed, for real. |
-| `OPS-NEEDS-CHANGE` | the fix is a file in this repository; it is filed as a backlog entry and groomed like any other ticket. |
+| `OPS-NEEDS-CHANGE` | the fix is a file in this repository; the plugin files it as a `restore-verification` entry naming that change. |
 | `OPS-BLOCKED` | nothing was restored; the loop advances or the escalation fires. |
 | `OPS-NOTHING-TO-DO` | the environment was already sound, so the block is about the change rather than the machine. |
 
@@ -865,9 +873,11 @@ time — the sprint number the header carries is the calendar sprint plus the
 offset — and the loop is how a blocker gets a second attempt without anybody
 waiting a fortnight for it.
 
-A blocker is carried whether or not the loop advances: `OPS-BLOCKED` mints a
-`restore-verification` entry either way, because a ceremony that says the ticket
-stays carried and files nothing has carried nothing.
+A blocker is carried whether or not the loop advances: `OPS-BLOCKED` and
+`OPS-NEEDS-CHANGE` both mint a `restore-verification` entry either way, because
+a ceremony that says the ticket stays carried and files nothing has carried
+nothing. The invariant that follows is worth stating on its own: **no sprint
+ever rolls carrying nothing.**
 
 You do not decide the roll and you do not perform it. The turn state tells you it
 happened. Render it between act 8 and the closing line, in exactly this shape:
@@ -875,12 +885,12 @@ happened. Render it between act 8 and the closing line, in exactly this shape:
 ```text
 ━━━ SPRINT 276 CLOSED · carried ━━━
 Carried: CER-BL-0003 · restore-verification · Elixir toolchain not installed
-Verification withheld: 4 check(s). QA-BLOCKED stands; no signature was invented.
+Verification withheld: 4 checks. QA-BLOCKED stands; no signature was invented.
 
 ━━━ SPRINT 277 · opened in session · day 1 of 14 ━━━
 Planning: CER-BL-0003 (3 pts) — the only item. Scope unchanged from CER-276-03.
 DevOps Engineer · attempt 2 · mechanism: just setup — OPS-BLOCKED
-QA Sign-off Officer · re-run · 4 check(s) still BLOCKED — QA-BLOCKED
+QA Sign-off Officer · re-run · 4 checks still BLOCKED — QA-BLOCKED
 Sprint 277 closed. No mechanism remains untried.
 ```
 
@@ -934,7 +944,7 @@ Diagnosis: mise pins a version for this project and it is not installed.
   Sprint 276 · DevOps Engineer: `mise install` — exit 1
   Sprint 277 · DevOps Engineer: `just setup` — recipe not found
 Mechanisms exhausted: mise · just. None remaining.
-Unverified: 4 acceptance check(s), all [ ] in act 6.
+Unverified: 4 acceptance checks, all [ ] in act 6.
 The one command that would clear this:
   mise install
 Backlog: CER-BL-0003 stays open until it does.

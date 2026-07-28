@@ -214,7 +214,7 @@ ROOT="$CWD/.ceremony"
 DIR="$ROOT/$TICKET"
 mkdir -p "$DIR/evidence" 2>/dev/null || { rm -f "$TMPIN"; exit 0; }
 [ -f "$ROOT/.gitignore" ] || printf '*\n' > "$ROOT/.gitignore" 2>/dev/null || true
-[ -f "$ROOT/config.json" ] || printf '{"version":"2.3.0","enforce":"on"}\n' > "$ROOT/config.json" 2>/dev/null || true
+[ -f "$ROOT/config.json" ] || printf '{"version":"2.3.1","enforce":"on"}\n' > "$ROOT/config.json" 2>/dev/null || true
 
 N=$(ls "$DIR/evidence" 2>/dev/null | wc -l | tr -d ' ')
 case "$N" in ''|*[!0-9]*) N=0 ;; esac
@@ -288,12 +288,14 @@ if [ "$ROLE" = devops ]; then
   ONEXT=$(jstr "$(printf '%s' "$BODY" | sed -n 's/^CEREMONY-OPS-NEXT: //p' | tail -n 1)")
   OSTART=$(jstr "$(printf '%s' "$BODY" | sed -n 's/^CEREMONY-OPS-STARTED: //p' | tail -n 1)")
   OCMD=$(jstr "$(printf '%s' "$BODY" | sed -n 's/^CEREMONY-OPS-COMMAND: //p' | tail -n 1)")
+  OCHANGE=$(jstr "$(printf '%s' "$BODY" | sed -n 's/^CEREMONY-OPS-CHANGE: //p' | tail -n 1)")
   [ -n "$OMECH" ] || OMECH=none
   [ -n "$ONEXT" ] || ONEXT=none
   [ -n "$OSTART" ] || OSTART=none
   [ -n "$OCMD" ] || OCMD=none
-  XTRA=$(printf ',"tried":%s,"mechanism":"%s","next":"%s","started":"%s","command":"%s"' \
-    "$OTRIED" "$OMECH" "$ONEXT" "$OSTART" "$OCMD")
+  [ -n "$OCHANGE" ] || OCHANGE=none
+  XTRA=$(printf ',"tried":%s,"mechanism":"%s","next":"%s","started":"%s","command":"%s","change":"%s"' \
+    "$OTRIED" "$OMECH" "$ONEXT" "$OSTART" "$OCMD" "$OCHANGE")
 fi
 
 # --- which attempt this is, and whether it ran anything ---------------------
@@ -440,12 +442,17 @@ if [ "$ROLE" = devops ]; then
   # A blocker is carried whether or not the loop advances. The roll buys the
   # ticket another attempt; the carry-over is what says it is still open, and a
   # ceremony that reports "the ticket stays carried" with nothing on disk has
-  # carried nothing. So OPS-BLOCKED mints an entry on the terminal path too,
-  # once per ticket.
+  # carried nothing. So both verdicts that leave verification unfinished mint an
+  # entry on the terminal path too, once per ticket. The invariant this keeps is
+  # the one worth having: verification that stopped short is on disk, whether
+  # the loop advances or ends, and no sprint ever rolls carrying nothing.
   MINT=no
   [ "$ROLL" = maybe ] && MINT=yes
-  if [ "$MINT" = no ] && [ "$TOKEN" = OPS-BLOCKED ]; then
-    grep -q '"kind":"restore-verification"' "$DIR/carry.jsonl" 2>/dev/null || MINT=yes
+  if [ "$MINT" = no ]; then
+    case "$TOKEN" in
+      OPS-BLOCKED|OPS-NEEDS-CHANGE)
+        grep -q '"kind":"restore-verification"' "$DIR/carry.jsonl" 2>/dev/null || MINT=yes ;;
+    esac
   fi
 
   if [ "$ROLL" = maybe ]; then
@@ -471,8 +478,19 @@ if [ "$ROLE" = devops ]; then
     SPRINT=$(int "$SPRINT")
     SUM=$(jstr "$(printf '%s' "$BODY" | sed -n 's/^CEREMONY-OPS-TRIED: //p' | head -n 1)")
     [ -n "$SUM" ] || SUM="verification blocked; restoration attempted and incomplete"
+
+    # What the entry needs is what would move it. On OPS-BLOCKED that is the
+    # untried mechanism; on OPS-NEEDS-CHANGE no mechanism will do, because the
+    # answer is an edit to a file the repository defines and ops has no write
+    # tools - so the change itself is what the entry names.
+    NEEDS=$ONEXT
+    if [ "$TOKEN" = OPS-NEEDS-CHANGE ] && [ "$OCHANGE" != none ]; then
+      NEEDS=$OCHANGE
+      [ "$SUM" = "verification blocked; restoration attempted and incomplete" ] &&
+        SUM="restoration requires a change ops cannot make: $OCHANGE"
+    fi
     printf '{"id":"%s","ts":"%s","kind":"restore-verification","opened_by":"%s","sprint_opened":%s,"summary":"%s","needs":"%s","command":"%s","owner":"DevOps Engineer","status":"open"}\n' \
-      "$BLID" "$TS" "$TICKET" "$SPRINT" "$SUM" "$ONEXT" "$OCMD" >> "$DIR/carry.jsonl" 2>/dev/null || true
+      "$BLID" "$TS" "$TICKET" "$SPRINT" "$SUM" "$NEEDS" "$OCMD" >> "$DIR/carry.jsonl" 2>/dev/null || true
 
     printf 'CEREMONY_CARRIED=%s\n' "$BLID" >> "$SENV" 2>/dev/null || true
   fi

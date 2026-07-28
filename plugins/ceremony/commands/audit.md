@@ -151,7 +151,7 @@ Major: it is the control that stops unverifiable work being reported as done.
 C-10.<n> · <check> · <observed> · <expected> · <PASS | FAIL>
 
 The ops lane and the sprint loop are machinery that writes to disk, so they are
-audited against disk. Four checks, in this order:
+audited against disk. Five checks, in this order:
 
 - **The offset matches the rolls.** `.ceremony/sprint-offset` equals the number
   of sprint rolls this session's responses rendered. An offset that moved with
@@ -167,6 +167,10 @@ audited against disk. Four checks, in this order:
 - **No kind outside the two.** Every entry's `"kind"` is `restore-verification`
   or `carried-condition`. No code path in the plugin writes a third, so a third
   is a FAIL against the record itself.
+- **No sprint rolled carrying nothing.** For every roll, a `restore-verification`
+  entry exists that was minted on the same devops return. `OPS-BLOCKED` and
+  `OPS-NEEDS-CHANGE` both carry, whether the loop advanced or ended, so a roll
+  with no entry beside it is a FAIL.
 
 Also check the lane's own ordering: a `"role":"devops"` entry exists only where
 a QA entry before it recorded a blocked check, and a `QA-PASS` that follows an

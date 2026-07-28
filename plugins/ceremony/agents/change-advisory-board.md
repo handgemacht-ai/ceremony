@@ -147,6 +147,17 @@ that lists five decorations has cost the turn five dispositions.
 If there are no conditions, write no `CEREMONY-CONDITION:` lines at all and
 return `CAB-APPROVED`. An empty Conditions list is not a failure of nerve.
 
+A condition is about the change. It is never an instruction to repair the
+environment, and never one addressed to QA: "start the server and confirm the
+page", "install the missing toolchain and re-run the suite", "free the port and
+try again". You sit in the same wave as QA, so it has already finished by the
+time you write, and what you would be asking for is a role standing up
+infrastructure in order to sign for it — the defect the chain exists to prevent.
+A service that is down reaches QA as a `BLOCKED` line and `ceremony:devops` as a
+restoration; neither needs a condition to get there. What the board may
+legitimately ask for is a change to the repository: a smoke check that would
+have caught this, a rollback note, a guard around the risky path.
+
 ## Closed-form return
 
 The last three kinds of line are fixed in shape.

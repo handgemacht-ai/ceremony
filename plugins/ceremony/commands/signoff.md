@@ -13,8 +13,14 @@ from the turn state and the scope.
 
 Do not run the checks yourself and do not mark a box from memory. QA reads the
 acceptance criteria off `.ceremony/<ticket>/ticket.md`, runs what can be run,
-and starts the app when a criterion is about what a user would see. That is the
-whole reason it is a separate agent: a check you recall is not a check.
+and blocks on what could not execute. That is the whole reason it is a separate
+agent: a check you recall is not a check.
+
+QA does not repair what a check found, and neither do you. A service that is
+down, a toolchain that is not installed, a port held by something else: each is
+a `BLOCKED` line naming the command, and each is what convenes
+`ceremony:devops`. Starting the app on QA's behalf so its checks pass is the
+same defect as marking the box yourself, one step further back.
 
 In the standard path QA goes in Wave D, in the same message as
 `ceremony:reviewer` and `ceremony:change-advisory-board`, so the three run at
@@ -61,7 +67,7 @@ Then follow the verdict:
 | Verdict | What happens next |
 |---|---|
 | `OPS-RESTORED` | convene `ceremony:qa` again. The blocked items are re-executed for real. |
-| `OPS-NEEDS-CHANGE` | the fix is a file in this repository; it becomes a backlog entry, groomed like any other ticket. |
+| `OPS-NEEDS-CHANGE` | the fix is a file in this repository; the plugin files it as a `restore-verification` entry naming that change. |
 | `OPS-BLOCKED` | nothing was restored. The escalation is the last resort, not the first. |
 | `OPS-NOTHING-TO-DO` | the environment was already sound; the block is about the change, not the machine. |
 
@@ -92,9 +98,9 @@ does not approve a change, and it is not one of the four eyes the chain line
 describes:
 
 ```text
-DevOps Engineer — restored (OPS-RESTORED, ceremony:devops) · 2 mechanism(s)
+DevOps Engineer — restored (OPS-RESTORED, ceremony:devops) · 2 mechanisms
 DevOps Engineer — not restored (OPS-BLOCKED, ceremony:devops) · 2 attempted
-DevOps Engineer — change required (OPS-NEEDS-CHANGE, ceremony:devops) · <file> proposed
+DevOps Engineer — change required (OPS-NEEDS-CHANGE, ceremony:devops) · .mise.toml proposed
 DevOps Engineer — nothing to restore (OPS-NOTHING-TO-DO, ceremony:devops)
 DevOps Engineer — withheld (role not convened)
 ```

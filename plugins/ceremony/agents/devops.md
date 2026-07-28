@@ -156,7 +156,7 @@ On `OPS-NEEDS-CHANGE`, add one line before the verdict:
 CEREMONY-OPS-CHANGE: <file> — <the change that would restore verification>
 ```
 
-Three of those lines carry mechanical weight and are read by the plugin:
+Four of those lines carry mechanical weight and are read by the plugin:
 
 - **`CEREMONY-OPS-NEXT:`** decides whether the sprint rolls. Name a mechanism
   from the table in section 2 that appears in this repository and that no
@@ -169,7 +169,13 @@ Three of those lines carry mechanical weight and are read by the plugin:
   the user in the escalation and it is the only thing the user is ever asked to
   do.
 - **`CEREMONY-OPS-STARTED:`** discloses services you left running. `none` when
-  you started nothing.
+  you started nothing. Nothing else in the ceremony records them, and nothing
+  stops them, so an omission here is a process the user never hears about.
+- **`CEREMONY-OPS-CHANGE:`** becomes the carried entry on `OPS-NEEDS-CHANGE`.
+  The plugin files a backlog entry whose `needs` is this line, so write the file
+  and the change plainly enough that somebody reading it next week knows what to
+  do. Verification stopped short of the user's request either way; this is the
+  line that says what would let it finish.
 
 One `CEREMONY-OPS-TRIED:` line per command you ran against the blocker, in the
 order you ran them, quoting the command exactly as you typed it. A verdict of
