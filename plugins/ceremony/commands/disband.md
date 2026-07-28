@@ -46,7 +46,7 @@ If `.ceremony/` does not exist, say so in one line and stop. Nothing to disband.
 Run, with Bash, exactly this, as one command, copied verbatim:
 
 ```sh
-mkdir -p .ceremony && printf '*\n' > .ceremony/.gitignore && printf '{"version":"2.3.1","enforce":"off"}\n' > .ceremony/config.json && find .ceremony -mindepth 1 -maxdepth 1 -type d -exec rm -rf {} + && cat .ceremony/config.json
+mkdir -p .ceremony && printf '*\n' > .ceremony/.gitignore && printf '{"version":"2.3.2","enforce":"off"}\n' > .ceremony/config.json && find .ceremony -mindepth 1 -maxdepth 1 -type d -exec rm -rf {} + && cat .ceremony/config.json
 ```
 
 Bash is never gated by this plugin, so this always works. That is deliberate:

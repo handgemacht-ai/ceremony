@@ -126,91 +126,120 @@ plu() {
   esac
 }
 
-# --- the backlog, written before anything can stop the turn -----------------
-# The Stop hook is the only one that sees the finished response, and a
-# condition's disposition is decided in the render rather than by any agent, so
-# this is the only place that can know what was carried. It runs here, above
-# every rule and above the correction budget, because a render that says a
-# ticket was filed and a disk that disagrees is the one outcome that must be
-# impossible - and the turn most likely to spend its budget is the blocked one,
-# which is exactly the turn with something to carry.
+# --- the backlog, in two halves that land at different moments ---------------
+# Exactly two kinds are written and there is no code path for a third, but they
+# come from different places and so they are filed at different times.
 #
-# Running it on every path is safe because it is idempotent: both kinds dedupe
-# on what is already on disk, so a correction re-render files nothing twice.
+# A restore-verification entry was already minted by the ledger, from an agent
+# return, before this hook ran. Nothing the render says can unmake it, so it is
+# promoted here - above every rule and above the correction budget - because a
+# response that says a ticket was filed while the disk disagrees is the one
+# outcome that must be impossible, and the turn most likely to spend its budget
+# is the blocked one, which is exactly the turn with something to carry.
 #
-# Exactly two kinds are written and there is no code path for a third. The
-# first promotes what the ledger already minted; the second reads the MUST
-# conditions the render carried.
-write_backlog() {
+# A carried-condition is different: it exists only because this render said
+# `Disposition: <n> carried`, and a render the gate is about to reject is not a
+# statement of what happened. Filing it here would leave an entry behind that
+# the corrected render never mentions, and rule AC would then block the
+# corrected render for not naming it. So it is written when the turn actually
+# ends - on the pass path, and on the budget-exhausted path where the render
+# ships as it stands - and never from a turn that was sent back.
+#
+# Both halves dedupe on what is already on disk, so replaying either files
+# nothing twice.
+promote_restore() {
   BLDIR="$CWD/.ceremony"
   [ -d "$BLDIR" ] || return 0
   BLF="$BLDIR/backlog.jsonl"
+  PEND="$BLDIR/$TICKET/carry.jsonl"
+  [ -f "$PEND" ] || return 0
   HAVE=''
   [ -f "$BLF" ] && HAVE=$(sed -n 's/.*"id":"\(CER-BL-[0-9]*\)".*/\1/p' "$BLF" 2>/dev/null)
-
-  # 1. restore-verification: minted by the ledger when the sprint rolled.
-  PEND="$BLDIR/$TICKET/carry.jsonl"
-  if [ -f "$PEND" ]; then
-    while IFS= read -r row; do
-      case "$row" in *'"kind":"restore-verification"'*) ;; *) continue ;; esac
-      rid=$(printf '%s' "$row" | sed -n 's/.*"id":"\(CER-BL-[0-9]*\)".*/\1/p')
-      [ -n "$rid" ] || continue
-      case " $(printf '%s' "$HAVE" | tr '\n' ' ') " in *" $rid "*) continue ;; esac
-      printf '%s\n' "$row" >> "$BLF" 2>/dev/null || true
-      HAVE="$HAVE
+  while IFS= read -r row; do
+    case "$row" in *'"kind":"restore-verification"'*) ;; *) continue ;; esac
+    rid=$(printf '%s' "$row" | sed -n 's/.*"id":"\(CER-BL-[0-9]*\)".*/\1/p')
+    [ -n "$rid" ] || continue
+    case " $(printf '%s' "$HAVE" | tr '\n' ' ') " in *" $rid "*) continue ;; esac
+    printf '%s\n' "$row" >> "$BLF" 2>/dev/null || true
+    HAVE="$HAVE
 $rid"
-    done < "$PEND"
-  fi
-
-  # 2. carried-condition: a board MUST the render answered with `carried`.
-  NCARR=$(printf '%s' "$ACT4" | grep -c 'Disposition: *[0-9][0-9]* *carried' 2>/dev/null) || NCARR=0
-  case "$NCARR" in ''|*[!0-9]*) NCARR=0 ;; esac
-  if [ "$NCARR" -gt 0 ]; then
-    NEXTN=$(printf '%s' "$HAVE" | sed -n 's/CER-BL-0*\([0-9][0-9]*\)/\1/p' | sort -n | tail -n 1)
-    case "$NEXTN" in ''|*[!0-9]*) NEXTN=0 ;; esac
-    SPR=$(sed -n 's/^CEREMONY_SPRINT=//p' "$SENV" 2>/dev/null | tail -n 1)
-    case "$SPR" in ''|*[!0-9]*) SPR=0 ;; esac
-    TSN=$(date +%Y-%m-%dT%H:%M:%S%z 2>/dev/null) || TSN=unknown
-    printf '%s' "$ACT4" | grep 'Disposition: *[0-9][0-9]* *carried' 2>/dev/null |
-    while IFS= read -r dline; do
-      dn=$(printf '%s' "$dline" | sed -n 's/.*Disposition: *\([0-9][0-9]*\).*/\1/p')
-      [ -n "$dn" ] || continue
-      # Only a MUST is carried. The board's own line says which it is.
-      cline=$(printf '%s' "$ACT4" | grep -F "$dn " 2>/dev/null | grep -E '\[MUST\]' | head -n 1)
-      [ -n "$cline" ] || continue
-      EMD=$(printf '\342\200\224')
-      sum=$(printf '%s' "$dline" | sed "s/.*carried *//; s/^$EMD *//; s/^- *//; s/^: *//" |
-        tr -d '\\"' | cut -c1-160)
-      [ -n "$sum" ] || sum="board condition $dn carried to the next sprint"
-      NEXTN=$((NEXTN + 1))
-      cid=$(printf 'CER-BL-%04d' "$NEXTN")
-      # A condition already carried from this ticket is not carried twice.
-      if [ -f "$BLF" ] && grep -q '"kind":"carried-condition"' "$BLF" 2>/dev/null &&
-         grep '"opened_by":"'"$TICKET"'"' "$BLF" 2>/dev/null | grep -qF "$sum" 2>/dev/null; then
-        continue
-      fi
-      printf '{"id":"%s","ts":"%s","kind":"carried-condition","opened_by":"%s","sprint_opened":%s,"summary":"%s","needs":"apply the condition","command":"none","owner":"Change Advisory Board","status":"open"}\n' \
-        "$cid" "$TSN" "$TICKET" "$SPR" "$sum" >> "$BLF" 2>/dev/null || true
-    done
-  fi
+  done < "$PEND"
   return 0
 }
-write_backlog 2>/dev/null || true
+
+file_conditions() {
+  BLDIR="$CWD/.ceremony"
+  [ -d "$BLDIR" ] || return 0
+  BLF="$BLDIR/backlog.jsonl"
+  NCARR=$(printf '%s' "$ACT4" | grep -c 'Disposition: *[0-9][0-9]* *carried' 2>/dev/null) || NCARR=0
+  case "$NCARR" in ''|*[!0-9]*) NCARR=0 ;; esac
+  [ "$NCARR" -gt 0 ] || return 0
+  HAVE=''
+  [ -f "$BLF" ] && HAVE=$(sed -n 's/.*"id":"\(CER-BL-[0-9]*\)".*/\1/p' "$BLF" 2>/dev/null)
+  NEXTN=$(printf '%s' "$HAVE" | sed -n 's/CER-BL-0*\([0-9][0-9]*\)/\1/p' | sort -n | tail -n 1)
+  case "$NEXTN" in ''|*[!0-9]*) NEXTN=0 ;; esac
+  # Pending carry rows hold ids too, and a condition must not be given one the
+  # ledger has already handed out.
+  PENDN=$(sed -n 's/.*"id":"CER-BL-0*\([0-9][0-9]*\)".*/\1/p' "$BLDIR"/*/carry.jsonl 2>/dev/null |
+    sort -n | tail -n 1)
+  case "$PENDN" in ''|*[!0-9]*) PENDN=0 ;; esac
+  [ "$PENDN" -gt "$NEXTN" ] && NEXTN=$PENDN
+  SPR=$(sed -n 's/^CEREMONY_SPRINT=//p' "$SENV" 2>/dev/null | tail -n 1)
+  case "$SPR" in ''|*[!0-9]*) SPR=0 ;; esac
+  TSN=$(date +%Y-%m-%dT%H:%M:%S%z 2>/dev/null) || TSN=unknown
+  printf '%s' "$ACT4" | grep 'Disposition: *[0-9][0-9]* *carried' 2>/dev/null |
+  while IFS= read -r dline; do
+    dn=$(printf '%s' "$dline" | sed -n 's/.*Disposition: *\([0-9][0-9]*\).*/\1/p')
+    [ -n "$dn" ] || continue
+    # Only a MUST is carried. The board's own line says which it is.
+    cline=$(printf '%s' "$ACT4" | grep -F "$dn " 2>/dev/null | grep -E '\[MUST\]' | head -n 1)
+    [ -n "$cline" ] || continue
+    EMD=$(printf '\342\200\224')
+    sum=$(printf '%s' "$dline" | sed "s/.*carried *//; s/^$EMD *//; s/^- *//; s/^: *//" |
+      tr -d '\\"' | cut -c1-160)
+    [ -n "$sum" ] || sum="board condition $dn carried to the next sprint"
+    NEXTN=$((NEXTN + 1))
+    cid=$(printf 'CER-BL-%04d' "$NEXTN")
+    # A condition already carried from this ticket is not carried twice.
+    if [ -f "$BLF" ] && grep -q '"kind":"carried-condition"' "$BLF" 2>/dev/null &&
+       grep '"opened_by":"'"$TICKET"'"' "$BLF" 2>/dev/null | grep -qF "$sum" 2>/dev/null; then
+      continue
+    fi
+    printf '{"id":"%s","ts":"%s","kind":"carried-condition","opened_by":"%s","sprint_opened":%s,"summary":"%s","needs":"apply the condition","command":"none","owner":"Change Advisory Board","status":"open"}\n' \
+      "$cid" "$TSN" "$TICKET" "$SPR" "$sum" >> "$BLF" 2>/dev/null || true
+  done
+  return 0
+}
+
+# The turn is over: whatever this render said, it is what ships.
+finish() {
+  file_conditions 2>/dev/null || true
+  exit 0
+}
+
+promote_restore 2>/dev/null || true
 
 # ---------------------------------------------------------------------------
-# The two exempt rules, checked before everything else and outside the budget.
+# The three exempt rules, checked before everything else and outside the budget.
 #
 # A budget of two corrections is what makes this hook terminate, and it is kept.
 # But it also means the third defect of a turn ships unremarked, and twice now
 # that third defect has been a commit: the earlier corrections spent the budget,
-# and the rule that would have caught the commit never ran. Two failures are
-# worth their own allowance, because both of them are the ceremony reporting
-# work it did not govern - the chair writing the code itself, and a commit that
-# destroys the artifact every signature was about.
+# and the rule that would have caught the commit never ran. Three failures are
+# worth their own allowance, because each of them is the ceremony reporting work
+# it did not govern - the chair writing the code itself, a commit that destroys
+# the artifact every signature was about, and the last line of a blocked turn
+# handing the user the repair job this whole release exists to stop handing
+# them. That last one shipped through a spent budget in testing, in the exact
+# words the field report opened with.
 #
-# Termination is preserved twice over: each rule fires at most once, because the
-# correction asks for a sentence whose presence stops it firing again, and the
-# exempt allowance is itself capped at two.
+# Admission to this belt is narrow, and the test is a closed remedy: the
+# correction has to be satisfiable by writing one fixed sentence, with no agent
+# convened, no measurement taken and no ledger read. Each of the three passes -
+# each asks for a literal, and each is false once that literal is on the page,
+# so none can fire twice. Rule Z looks similar and does not qualify: clearing it
+# means convening QA again, which is a re-run, not a re-render. The exempt
+# allowance is itself capped at two, so the worst case stays four blocks.
 XFILE="$DATA/sessions/$SID.corrections-exempt"
 XN=$(cat "$XFILE" 2>/dev/null) || XN=0
 case "$XN" in ''|*[!0-9]*) XN=0 ;; esac
@@ -261,11 +290,27 @@ if [ "$XN" -lt 2 ]; then
       *) blockx "V \\u00b7 A commit was made in this turn. The ceremony never commits, and the reason is not decorum: the working tree is the artifact act 7 signs for, so a commit turns the reviewed thing into history and leaves the user holding something else. The rollback the board wrote down was only true while the change was uncommitted, and committing was the one decision in this process that was never delegated.\\n\\nIt cannot be taken back from here, so it is disclosed. Act 7 withholds every line, and the response carries this exact sentence: A commit was made in this turn; no signature in this ceremony covers a commit.\\n\\nThe closing line still ends Committed: no (the tree is yours) only when nothing was committed. It did not, so say what happened instead, in one line, and leave the decision about the commit with the user.\\n\\n$HATCH" ;;
     esac
   fi
+  # --- AF: the closed final-resort line ------------------------------------
+  # The whole release is about not handing the user homework. One line carries it,
+  # and it is fixed.
+  DEC=$(printf '%s' "$MSG" | grep 'Decision required from the user:' 2>/dev/null | head -n 1)
+  if [ -n "$DEC" ]; then
+    REST=${DEC#*Decision required from the user:}
+    REST=${REST#"${REST%%[! ]*}"}
+    # Case-folded before the match: a sentence that starts with a capital is the
+    # ordinary way to write one, and "None." is the same answer as "none.".
+    REST=$(printf '%s' "$REST" | tr 'A-Z' 'a-z')
+    case "$REST" in
+      none|none.*|none[!a-z]*) ;;
+      *)
+        blockx "AF \\u00b7 The response asks the user for a decision:\\n  $DEC\\n\\nThat line has one permitted value and it is none. The ceremony was asked to stop escalating its own unfinished business, and this is the line where that shows: by the time the escalation is written, ceremony:devops has already tried the mechanisms this repository defines, the sprint has rolled if a mechanism remained, and what is left is a report.\\n\\nThe line reads exactly:\\n  Decision required from the user: none. This is a report; the ticket stays carried.\\n\\nEverything the user might want to know goes above it - the blocker, the diagnosis with one line per attempt, the mechanisms exhausted, the count of unverified criteria, and the single command from ceremony:devops's CEREMONY-OPS-COMMAND line. Naming that command is not asking for it to be run; it is telling the user what would clear this if they ever want it cleared.\\n\\nThe one thing that legitimately asks the user a question is PO-CLARIFY, and that is about an ambiguous request, not a broken environment.\\n\\n$HATCH" ;;
+    esac
+  fi
 fi
 
 # The budget, spent. Everything from here down is a correction the turn can
 # live without; the two above were not.
-[ "$BN" -ge "$MAXBLOCKS" ] && exit 0
+[ "$BN" -ge "$MAXBLOCKS" ] && finish
 
 # --- A: a token nobody returned --------------------------------------------
 # Every token in act 7 is a quotation. Ticked or withheld, it has to have been
@@ -410,23 +455,6 @@ if [ -n "$OPSANY" ] && printf '%s' "$OPSANY" | grep -q '"verdict":"OPS-RESTORED"
   if [ -z "$LASTQA" ] || [ "$LASTQA" \< "$LASTREST" ]; then
     blockc "Z \\u00b7 ceremony:devops returned OPS-RESTORED at $LASTREST and no QA entry on $TICKET postdates it. A restoration nobody re-verified is a claim, not a fact.\\n\\nThe ops agent did not run the checks - it is not allowed to, and it would be marking its own work if it did. Convene ceremony:qa again with the blocked items as its scope, let it re-execute them for real, and render act 6 from that second return. The convening gate opens for QA precisely because OPS-RESTORED is on the record.\\n\\nIf the re-run comes back blocked again, that is an honest outcome and the loop carries on from there. What is not available is a sign-off resting on the word restored.\\n\\n$HATCH"
   fi
-fi
-
-# --- AF: the closed final-resort line ---------------------------------------
-# The whole release is about not handing the user homework. One line carries it,
-# and it is fixed.
-DEC=$(printf '%s' "$MSG" | grep 'Decision required from the user:' 2>/dev/null | head -n 1)
-if [ -n "$DEC" ]; then
-  REST=${DEC#*Decision required from the user:}
-  REST=${REST#"${REST%%[! ]*}"}
-  # Case-folded before the match: a sentence that starts with a capital is the
-  # ordinary way to write one, and "None." is the same answer as "none.".
-  REST=$(printf '%s' "$REST" | tr 'A-Z' 'a-z')
-  case "$REST" in
-    none|none.*|none[!a-z]*) ;;
-    *)
-      block "AF \\u00b7 The response asks the user for a decision:\\n  $DEC\\n\\nThat line has one permitted value and it is none. The ceremony was asked to stop escalating its own unfinished business, and this is the line where that shows: by the time the escalation is written, ceremony:devops has already tried the mechanisms this repository defines, the sprint has rolled if a mechanism remained, and what is left is a report.\\n\\nThe line reads exactly:\\n  Decision required from the user: none. This is a report; the ticket stays carried.\\n\\nEverything the user might want to know goes above it - the blocker, the diagnosis with one line per attempt, the mechanisms exhausted, the count of unverified criteria, and the single command from ceremony:devops's CEREMONY-OPS-COMMAND line. Naming that command is not asking for it to be run; it is telling the user what would clear this if they ever want it cleared.\\n\\nThe one thing that legitimately asks the user a question is PO-CLARIFY, and that is about an ambiguous request, not a broken environment.\\n\\n$HATCH" ;;
-  esac
 fi
 
 # --- L: a blocked verification that was not escalated -----------------------
@@ -763,7 +791,15 @@ fi
 # that carries one while the ledger counts no blocked check is the two
 # disagreeing about what happened.
 if [ -n "$QALAST" ] && [ "$NBLK" -eq 0 ]; then
-  ACT6=$(printf '%s' "$MSG" | awk 'index(tolower($0), "definition of done") { f = 1 } f { print }' 2>/dev/null)
+  # Act 6 alone, closed at both ends. Act 6a exists to report the commands that
+  # failed - "Attempted: mise install - command not found" is its own template -
+  # so a window that ran to the end of the message read a successful restoration
+  # as QA mis-classifying, and fired on the one path this release exists to
+  # make work. The same shape as the act 4 and act 7 windows above.
+  ACT6=$(printf '%s' "$MSG" | awk '
+    index(tolower($0), "definition of done") { f = 1 }
+    index(tolower($0), "restoration") || index(tolower($0), "sign-off") { f = 0 }
+    f { print }' 2>/dev/null)
   EXFAIL=$(printf '%s' "$ACT6" |
     grep -oiE 'command not found|no such file or directory|connection refused|failed to connect|couldn.t connect|no version is set|address already in use|permission denied|modulenotfounderror|cannot find module|could not find a mix.project|exit (code |status )?12[67]' 2>/dev/null |
     tr 'A-Z' 'a-z' | sort -u | tr '\n' '@' | sed 's/@$//; s/@/, /g')
@@ -850,4 +886,4 @@ if ! printf '%s' "$MSG" | grep -q 'CEREMONY ' 2>/dev/null; then
   fi
 fi
 
-exit 0
+finish

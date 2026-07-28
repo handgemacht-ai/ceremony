@@ -250,11 +250,12 @@ and converted into action items (owner: unassigned, due: next sprint).
   hide a deliberate change. Any other leftover is still recorded as a change.
 - The correction budget is two, and the third problem ships. After two `Stop`
   corrections the gate stops blocking, because a turn stuck in a loop is worse
-  than a turn with a flaw in it. Two rules are exempt since v2.2.1 and always
-  fire — a change the chair made itself, and a turn that committed — because both
-  are about the record rather than the render, and both were observed shipping on
-  turns whose budget had gone on formatting. The exemption is capped at two, so
-  the ceiling is four.
+  than a turn with a flaw in it. Three rules are exempt and always fire — a change
+  the chair made itself, a turn that committed, and an escalation that ends by
+  handing the user a repair job — because each is about the record rather than
+  the render, each was observed shipping on a turn whose budget had gone on
+  formatting, and each is cleared by writing one fixed sentence. The exemption is
+  capped at two, so the ceiling is four.
 - The sign-off gate reads the last message of a turn, and act 7 within it.
   Smaller models sometimes deliver one response as two or three messages, and
   only the final one is checked. Token checking is scoped to the sign-off block,
@@ -308,6 +309,13 @@ nothing, because the write sat below the correction budget; a QA brief that told
 QA to start the service it was about to check, which kept the ops lane shut in
 the runs that needed it most; and an environment failure recorded as a `FAIL`,
 which put the lane out of reach by wording alone.
+
+Closed by v2.3.2: an act 6 scan that ran on into act 6a and read a successful
+restoration as a mis-classified check, costing a correction on the path the ops
+lane exists for; an escalation that handed the user a repair job because both
+corrections had already gone on formatting, now refused outside the budget; and
+a rejected render that filed the board condition it named, leaving an entry
+behind that the corrected render never mentioned.
 
 `.ceremony/` appears the first time a turn changes a file. It ignores itself,
 arms nothing on its own, and `/ceremony:disband` removes the ticket records

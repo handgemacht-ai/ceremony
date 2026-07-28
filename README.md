@@ -164,7 +164,7 @@ v2 ships hooks. They are the part of the process that is not a suggestion.
 | `PostToolUse` on writes | Records that the code moved, when, and by whose hand — the Engineer, another agent, or the chair. |
 | `SubagentStart` / `SubagentStop` | Marks the window in which the Engineer is running, and clears it when the Engineer returns. The write gate reads that marker; a marker older than thirty minutes is ignored and deleted. |
 | `PostToolUse` on `Bash` | Records the chair reading the diff — `git diff`, `git status`, `git show`, `git log -p` — which is the link in the chain the sign-off checks. Compares the working tree against the state at the start of the turn. If a shell command changed it, that is an implementation entry too, marked `via: "bash"`. Post-hooks cannot refuse anything; this one only records, which is enough to bring shell writes under the rule that verification must follow the change. Outside a git repository it does nothing. |
-| `Stop` | Thirty-three rules. Refuses to end a turn on a verdict token act 7 quotes that no agent returned — ticked or withheld — a tick on a token that withholds, a clock time in act 7, an act headed by an agent that never ran, a placeholder where the estimate goes, a file-changing turn rendered as a question or as bare prose, a sign-off assembled from an empty ledger, ticked boxes with no QA entry, a verification that ran before the change, a board condition act 4 left unanswered, a blocked verification the turn did not escalate, an escalation with nothing to escalate, a blocked verification escalated straight to the user with no DevOps Engineer on the ledger, a restoration nobody re-verified, a `Decision required from the user:` line that is followed by anything other than `none`, or a turn that lists the ways out of the plugin and asks the user to choose instead of doing the work. Then, reported together rather than one at a time: a change the chair made itself, an act 5 describing a diff nobody read, counts that disagree with the ledger, a signature on a blocked implementation, a review that answered fewer criteria than were accepted, a deviation with no Deviations block, an act 7 missing one of its ten lines, a DevOps line whose shape disagrees with the verdict it quotes, a `CER-BL-` id that exists nowhere, a backlog entry the response never mentioned, a carried line naming a kind outside the two, a sprint roll on disk that the render omits or a roll in the render that never happened, a QA re-run that ran no commands, a `NOTHING-TO-REVIEW` over an implementation the ledger recorded, evidence quoting an execution failure while the ledger counts no blocked check, a signing token disclaimed on a turn where nothing on the record explains it, an unfilled placeholder left in the render, and an acceptance ticked without one. Two of them ignore the correction budget and fire however many corrections the turn has already had: the chair-authored change, and a turn that committed anyway. |
+| `Stop` | Thirty-three rules. Refuses to end a turn on a verdict token act 7 quotes that no agent returned — ticked or withheld — a tick on a token that withholds, a clock time in act 7, an act headed by an agent that never ran, a placeholder where the estimate goes, a file-changing turn rendered as a question or as bare prose, a sign-off assembled from an empty ledger, ticked boxes with no QA entry, a verification that ran before the change, a board condition act 4 left unanswered, a blocked verification the turn did not escalate, an escalation with nothing to escalate, a blocked verification escalated straight to the user with no DevOps Engineer on the ledger, a restoration nobody re-verified, a `Decision required from the user:` line that is followed by anything other than `none`, or a turn that lists the ways out of the plugin and asks the user to choose instead of doing the work. Then, reported together rather than one at a time: a change the chair made itself, an act 5 describing a diff nobody read, counts that disagree with the ledger, a signature on a blocked implementation, a review that answered fewer criteria than were accepted, a deviation with no Deviations block, an act 7 missing one of its ten lines, a DevOps line whose shape disagrees with the verdict it quotes, a `CER-BL-` id that exists nowhere, a backlog entry the response never mentioned, a carried line naming a kind outside the two, a sprint roll on disk that the render omits or a roll in the render that never happened, a QA re-run that ran no commands, a `NOTHING-TO-REVIEW` over an implementation the ledger recorded, evidence quoting an execution failure while the ledger counts no blocked check, a signing token disclaimed on a turn where nothing on the record explains it, an unfilled placeholder left in the render, and an acceptance ticked without one. Three of them ignore the correction budget and fire however many corrections the turn has already had: the chair-authored change, a turn that committed anyway, and an escalation that hands the user a repair job. |
 
 Token checking is scoped to act 7 and disposition counting to act 4. A response
 may quote a gate's own wording, a command file or a ticket note anywhere else
@@ -292,7 +292,7 @@ convene nobody again, and finish the turn rather than stop on it.
 ```text
 .ceremony/
   .gitignore                     "*" — the record ignores itself. Delete it to commit the trail.
-  config.json                    {"version":"2.3.1","enforce":"on"} - or "off", the disband tombstone
+  config.json                    {"version":"2.3.2","enforce":"on"} - or "off", the disband tombstone
   backlog.jsonl                  append-only: the carried tickets, in two kinds and no third. Outlives the session.
   sprint-offset                  an integer. Ceremony time = calendar sprint + this. Project-scoped so numbers never regress.
   CER-<sprint>-<NN>/
@@ -587,13 +587,15 @@ converted into action items (owner: unassigned, due: next sprint).
   rule sends a turn back, that is a correction; after two corrections the gate
   stops blocking, on the grounds that a turn stuck in a loop is worse than a turn
   with a flaw in it. So a response with three separate defects has two of them
-  fixed and the third goes out unremarked. Two rules are exempt from the budget
-  since v2.2.1 and always fire — the one that refuses a chair-authored
-  implementation and the one that refuses a turn that committed — because both
-  are about the integrity of the record rather than the tidiness of the render,
-  and both were observed shipping on turns whose budget had already gone on
-  formatting. The exemption is capped at two blocks of its own, so the ceiling is
-  four.
+  fixed and the third goes out unremarked. Three rules are exempt from the budget
+  and always fire — the one that refuses a chair-authored implementation, the one
+  that refuses a turn that committed, and the one that refuses an escalation
+  ending in a repair job for the user — because each is about the integrity of
+  the record rather than the tidiness of the render, and each was observed
+  shipping on a turn whose budget had already gone on formatting. Admission is
+  narrow: a rule qualifies only when its correction is one fixed sentence, with
+  no agent convened and no measurement taken, so it cannot fire twice. The
+  exemption is capped at two blocks of its own, so the ceiling is four.
 - **The sign-off gate reads the last message of a turn, and act 7 within it.**
   Smaller models sometimes deliver one response as two or three messages, and
   only the final one is checked. Token checking is scoped to the sign-off block,
@@ -680,6 +682,25 @@ neither reaches a lane that opens on the blocked count. `BLOCKED` and `FAIL` are
 now separated mechanically — could not execute against executed and
 contradicted — with the signals enumerated in the brief and a `Stop` rule that
 reports evidence quoting an execution failure while the ledger counts none.
+
+Closed by v2.3.2, all three from the same release being exercised again:
+**the rule that reads act 6 was reading the rest of the message with it.** Its
+scan opened at the Definition of Done and never closed, so it swallowed act 6a,
+where the restoration reports the commands that failed by design — a run that
+lost its first mechanism, recovered on the second and passed a clean re-run read
+as QA mis-classifying, and the happy path this release exists for paid a
+correction for it. The scan now stops where the restoration begins.
+**The escalation's closing line joined the budget-exempt belt.** It is fixed at
+`Decision required from the user: none.`, and a turn that spent both corrections
+on formatting shipped it carrying a toolchain to install — the release's one
+promise, inverted, in the last line the user reads. Its correction is a literal
+substitution, so it terminates on its own and it costs no agent.
+**And a rejected render filed the board conditions it had named.** The backlog
+write had moved above the correction budget, which is right for an entry the
+ledger already minted and wrong for one derived from a render the gate was about
+to send back: the corrected render dropped the condition and the stale entry
+stayed, unnamed and unexplained. Minted entries still land whatever happens to
+the render; a condition lands when the turn actually ends.
 
 Closed by v2.0.1 and v2.0.2, recorded here because they were real: the ticket
 changing mid-turn when a background notification arrived; an agent's launch stub

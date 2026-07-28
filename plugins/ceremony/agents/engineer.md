@@ -157,7 +157,7 @@ verdict:
 CEREMONY-BLOCKED: AC-<n> — <what you attempted, and what stopped it>
 ```
 
-On `ENG-NO-CHANGE`, write `CEREMONY-DIFF: 0 file(s) · +0 −0` and no
+On `ENG-NO-CHANGE`, write `CEREMONY-DIFF: 0 files · +0 −0` and no
 `CEREMONY-FILE:` lines at all.
 
 `CEREMONY-VERDICT:` is the last line of your reply, always, with nothing after
