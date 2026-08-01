@@ -672,6 +672,34 @@ led_num() {
 num_or_zero() {
   case "${1:-}" in ''|*[!0-9]*) printf '0' ;; *) printf '%s' "$1" ;; esac
 }
+# The wording the Engineer line takes, from the verdict. Rules P and X both name
+# that line and each used to carry its own copy of the mapping. They disagreed on
+# ENG-NO-CHANGE: P dictated a line X was certain to reject, and the turn spent its
+# whole budget writing the line one rule demanded and the other refused. One
+# mapping, read by both, is what makes that impossible rather than merely fixed.
+eng_shape() {
+  case "$1" in
+    ENG-IMPLEMENTED) printf 'implemented' ;;
+    ENG-BLOCKED)     printf 'not implemented' ;;
+    ENG-NO-CHANGE)   printf 'nothing to implement' ;;
+  esac
+}
+# And the whole line, for a verdict and a measurement. O and P both have to name
+# it and X is the rule that refuses it, so one builder is what keeps the three of
+# them saying the same thing. Counts belong to the implemented shape alone: an
+# engineer that moved files and then hit a blocker still signs 0 files, because
+# what the line reports is what its verdict delivered and not what is in the tree.
+eng_line() {
+  ESHAPE=$(eng_shape "$1")
+  if [ -z "$ESHAPE" ]; then
+    printf 'Engineer \\u2014 withheld (%s)' "${1:-role not convened}"
+  elif [ "$1" = ENG-IMPLEMENTED ]; then
+    printf 'Engineer \\u2014 %s (%s, ceremony:engineer) \\u00b7 %s, +%s \\u2212%s' \
+      "$ESHAPE" "$1" "$(plu "$2" file files)" "$3" "$4"
+  else
+    printf 'Engineer \\u2014 %s (%s, ceremony:engineer) \\u00b7 0 files' "$ESHAPE" "$1"
+  fi
+}
 
 ENGV=$(printf '%s' "$MINE" | grep '"role":"engineer"' 2>/dev/null | tail -n 1 | sed -n 's/.*"verdict":"\([^"]*\)".*/\1/p')
 REVV=$(printf '%s' "$MINE" | grep '"role":"reviewer"' 2>/dev/null | tail -n 1 | sed -n 's/.*"verdict":"\([^"]*\)".*/\1/p')
@@ -692,7 +720,13 @@ if [ -n "$LASTIMPL2" ]; then
 fi
 
 # --- O: numbers that disagree with the measurement --------------------------
+# The implementation entry is written whenever the tree moved, whatever the
+# engineer then returned, so this rule fires on blocked turns too. It used to
+# answer them with "implemented ($ENGV) - 2 files", which X refuses twice over:
+# wrong verb, and counts on a line that may not carry them. The two rules sent
+# the render between them until the budget ran out. O quotes X's line now.
 if [ -n "$IMPLLINE" ]; then
+  OLINE=$(eng_line "$ENGV" "$MFILES" "$MADDED" "$MREMOVED")
   CLAIM=$(printf '%s' "$ACT7" | grep -E '[0-9] +files?' 2>/dev/null | grep -F '+' | head -n 1)
   [ -n "$CLAIM" ] || CLAIM=$(printf '%s' "$ACT5" | grep -E '[0-9] +files?' 2>/dev/null | grep -F '+' | head -n 1)
   if [ -n "$CLAIM" ]; then
@@ -701,13 +735,13 @@ if [ -n "$IMPLLINE" ]; then
     C2=$(num_or_zero "$(printf '%s' "$CN" | cut -d' ' -f2)")
     C3=$(num_or_zero "$(printf '%s' "$CN" | cut -d' ' -f3)")
     if [ "$C1" != "$MFILES" ] || [ "$C2" != "$MADDED" ] || [ "$C3" != "$MREMOVED" ]; then
-      note "O \\u00b7 The response reports the size of the change as $(plu "$C1" file files), +$C2 -$C3. The ledger measured $(plu "$MFILES" file files), +$MADDED -$MREMOVED, counted from the tool calls the engineer actually made rather than from its description of them.\\n\\nQuote the ledger's numbers, in act 5 and on the act 7 engineer line: Engineer \\u2014 implemented ($ENGV, ceremony:engineer) \\u00b7 $MFILES files, +$MADDED -$MREMOVED. Where the engineer's own CEREMONY-DIFF line disagrees with the measurement, the measurement is what is written and the disagreement is worth a sentence in act 5."
+      note "O \\u00b7 The response reports the size of the change as $(plu "$C1" file files), +$C2 -$C3. The ledger measured $(plu "$MFILES" file files), +$MADDED -$MREMOVED, counted from the tool calls the engineer actually made rather than from its description of them.\\n\\nQuote the ledger's numbers in act 5, and give the act 7 engineer line the shape its own verdict takes:\\n\\n  $OLINE\\n\\nWhere the engineer's own CEREMONY-DIFF line disagrees with the measurement, the measurement is what is written and the disagreement is worth a sentence in act 5."
     fi
   elif [ "$MFILES" -gt 0 ]; then
     # The other direction. A render that prints no counts at all is not a
     # cautious render: the measurement exists, act 5 and act 7 are where it is
     # quoted, and leaving it out is the same defect as inventing one.
-    note "O \\u00b7 The ledger measured $(plu "$MFILES" file files), +$MADDED -$MREMOVED on $TICKET and the response quotes no counts anywhere in act 5 or act 7.\\n\\nThe numbers are not optional and they are not yours to compose. Act 5 carries: Changed: $(plu "$MFILES" file files), +$MADDED \\u2212$MREMOVED. The act 7 engineer line carries: Engineer \\u2014 implemented ($ENGV, ceremony:engineer) \\u00b7 $MFILES files, +$MADDED \\u2212$MREMOVED. Both come from the implementation entry on the ledger, which the plugin measured by diffing the working tree before and after the engineer ran."
+    note "O \\u00b7 The ledger measured $(plu "$MFILES" file files), +$MADDED -$MREMOVED on $TICKET and the response quotes no counts anywhere in act 5 or act 7.\\n\\nThe numbers are not optional and they are not yours to compose. Act 5 carries: Changed: $(plu "$MFILES" file files), +$MADDED \\u2212$MREMOVED, which the plugin measured by diffing the working tree before and after the engineer ran. The act 7 engineer line takes the shape its own verdict picks:\\n\\n  $OLINE"
   fi
 fi
 
@@ -724,7 +758,8 @@ case "$ENGV" in
       case " $SIGNING " in *" $tok "*) SIGNED="$SIGNED $tok" ;; esac
     done
     if [ -n "$SIGNED" ]; then
-      note "P \\u00b7 ceremony:engineer returned $ENGV on $TICKET and act 7 still ticks:$SIGNED.\\n\\nNothing was delivered for those signatures to be about. Every line in act 7 withholds on this turn, each with its own token in the brackets - a Product Owner that accepted the criteria still reads Product Owner \\u2014 withheld (PO-ACCEPT), because accepting criteria is not the same as signing off a change that was never made. The engineer line reads: Engineer \\u2014 not implemented ($ENGV, ceremony:engineer) \\u00b7 0 files. Say plainly, in act 5, what was asked for and what stopped it."
+      ELINE=$(eng_line "$ENGV")
+      note "P \\u00b7 ceremony:engineer returned $ENGV on $TICKET and act 7 still ticks:$SIGNED.\\n\\nNothing was delivered for those signatures to be about. Every line in act 7 withholds on this turn, each with its own token in the brackets - a Product Owner that accepted the criteria still reads Product Owner \\u2014 withheld (PO-ACCEPT), because accepting criteria is not the same as signing off a change that was never made. The engineer line is the one that quotes its own outcome instead, in the wording its verdict picks:\\n\\n  $ELINE\\n\\nSay plainly, in act 5, what was asked for and what stopped it."
     fi
     ;;
 esac
@@ -828,12 +863,7 @@ if [ -n "$ENGLINE" ]; then
     *ENG-BLOCKED*)     ETOK=ENG-BLOCKED ;;
     *ENG-NO-CHANGE*)   ETOK=ENG-NO-CHANGE ;;
   esac
-  WANT=''
-  case "$ETOK" in
-    ENG-IMPLEMENTED) WANT=implemented ;;
-    ENG-BLOCKED)     WANT='not implemented' ;;
-    ENG-NO-CHANGE)   WANT='nothing to implement' ;;
-  esac
+  WANT=$(eng_shape "$ETOK")
   if [ -n "$ETOK" ] && [ -n "$SHAPE" ] && [ "$SHAPE" != "$WANT" ]; then
     note "X \\u00b7 The Engineer line reads \\\"$SHAPE\\\" and quotes $ETOK, and those are two different outcomes. The line is one of exactly three, and the verdict picks which:\\n\\n  Engineer \\u2014 implemented (ENG-IMPLEMENTED, ceremony:engineer) \\u00b7 <n> files, +<a> \\u2212<r>\\n  Engineer \\u2014 not implemented (ENG-BLOCKED, ceremony:engineer) \\u00b7 0 files\\n  Engineer \\u2014 nothing to implement (ENG-NO-CHANGE, ceremony:engineer) \\u00b7 0 files\\n\\n$ETOK takes the line that reads \\\"$WANT\\\". Counts belong to the first shape only: a blocked engineer wrote nothing, so its line carries 0 files and no line counts, whatever else is in the working tree."
   fi
@@ -901,7 +931,14 @@ fi
 # --- AC: a backlog id in the render, and one on disk -------------------------
 BLROOT="$CWD/.ceremony/backlog.jsonl"
 BLPEND="$CWD/.ceremony/$TICKET/carry.jsonl"
-ONDISK=$(cat "$BLROOT" "$BLPEND" 2>/dev/null | sed -n 's/.*"id":"\(CER-BL-[0-9]*\)".*/\1/p' | sort -u)
+# Only what this ticket opened. The backlog is the project's and holds every
+# ticket's rows, so an unfiltered read demanded that this render name a blocker
+# some other ticket carried - under a sentence that says it was filed for this
+# one. Both sources are scoped the same way ceremony:devops scopes its reuse
+# check: the row belongs to the ticket named on it.
+ONDISK=$(cat "$BLROOT" "$BLPEND" 2>/dev/null |
+  grep -F '"opened_by":"'"$TICKET"'"' 2>/dev/null |
+  sed -n 's/.*"id":"\(CER-BL-[0-9]*\)".*/\1/p' | sort -u)
 INTEXT=$(printf '%s' "$MSG" | grep -o 'CER-BL-[0-9][0-9]*' 2>/dev/null | sort -u)
 GHOST=''
 for b in $INTEXT; do

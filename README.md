@@ -292,7 +292,7 @@ convene nobody again, and finish the turn rather than stop on it.
 ```text
 .ceremony/
   .gitignore                     "*" — the record ignores itself. Delete it to commit the trail.
-  config.json                    {"version":"2.3.3","enforce":"on"} - or "off", the disband tombstone
+  config.json                    {"version":"2.3.4","enforce":"on"} - or "off", the disband tombstone
   backlog.jsonl                  append-only: the carried tickets, in two kinds and no third. Outlives the session.
   sprint-offset                  an integer. Ceremony time = calendar sprint + this. Project-scoped so numbers never regress.
   CER-<sprint>-<NN>/
@@ -729,6 +729,31 @@ separately; the chair swapped the one it had for the one it was shown, which
 turned each half into the other until the budget ran out and a ticket nobody had
 been told about shipped anyway. Rule AC now reports every discrepancy in one
 message, and says to add what is missing rather than exchange it.
+
+Closed by v2.3.4, all of them corrections that could not be satisfied:
+**three rules dictated the same act 7 line and disagreed about it.** The rule
+that refuses a signature under an implementation that did not happen spelled the
+Engineer line out with one verb in it; the rule that validates that line maps
+`ENG-NO-CHANGE` to a different one, and so does the output style. On a
+no-change turn the first correction demanded the line the second was certain to
+reject, and the turn wrote each of them in turn until the budget ran out. The
+rule that checks the size of the change had the same defect and a worse reach:
+the implementation entry is written whenever the tree moved, whatever the
+engineer then returned, so an engineer that edited files and *then* hit a blocker
+was told to write `implemented (ENG-BLOCKED) · 2 files, +5 −1` — refused twice
+over, on the verb and on the counts, which belong to the implemented shape alone.
+One builder composes that line for all three rules now, from the verdict and the
+measurement, so no correction can prescribe a line the gate refuses. A verdict
+that is not one of the three — a return that could not be read — takes
+`Engineer — withheld (MALFORMED)`, which is what the output style says every
+non-signing token does.
+**And the backlog correction was the project's while the sentence above it was
+the ticket's.** `.ceremony/backlog.jsonl` holds what every ticket in the project
+ever carried, and rule AC read all of it, then said the ids were filed for this
+ticket. It is scoped to the rows this ticket opened now, the same way the writer
+scopes the id it reuses. The line handed to the chair when an id is minted no
+longer calls that id the only one, either: a ticket can carry a blocker and a
+board condition at once, and both belong on the page.
 
 Closed by v2.0.1 and v2.0.2, recorded here because they were real: the ticket
 changing mid-turn when a background notification arrived; an agent's launch stub

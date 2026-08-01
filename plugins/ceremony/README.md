@@ -328,6 +328,19 @@ heals on its next ceremony turn, keeping rows an earlier version filed without a
 condition number apart by their wording. Two turns writing the backlog at once
 cannot lose each other's entry.
 
+Closed by v2.3.4: an act 7 Engineer line three rules dictated and disagreed
+about, which cost every `ENG-NO-CHANGE` turn its whole correction budget, and
+every turn where the engineer edited files and then hit a blocker — that one was
+told to sign `implemented (ENG-BLOCKED) · 2 files`, which the same gate refuses
+on the verb and on the counts; a backlog correction that demanded the ids other
+tickets had opened while saying they were filed for this one; and an id handed to
+the chair as the only one on a ticket that may legitimately carry two. One
+builder composes the Engineer line for every rule that names it, from the verdict
+and the measurement, with counts on the implemented shape alone and
+`withheld (MALFORMED)` for a return that could not be read. Rule AC is scoped to
+the rows this ticket opened, and the minted id is quoted beside whatever else is
+already on the record.
+
 `.ceremony/` appears the first time a turn changes a file. It ignores itself,
 arms nothing on its own, and `/ceremony:disband` removes the ticket records
 inside it, leaving the tombstone behind.
