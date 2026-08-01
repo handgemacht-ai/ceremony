@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "The most process-rigorous Claude Code plugin ever built: thirteen ceremonies, eight role agents that are really convened, one of which does the work, an append-only ticket record, and zero changes blocked.",
-    "version": "2.3.3"
+    "version": "2.3.4"
   },
   "plugins": [
     {

@@ -214,7 +214,7 @@ ROOT="$CWD/.ceremony"
 DIR="$ROOT/$TICKET"
 mkdir -p "$DIR/evidence" 2>/dev/null || { rm -f "$TMPIN"; exit 0; }
 [ -f "$ROOT/.gitignore" ] || printf '*\n' > "$ROOT/.gitignore" 2>/dev/null || true
-[ -f "$ROOT/config.json" ] || printf '{"version":"2.3.3","enforce":"on"}\n' > "$ROOT/config.json" 2>/dev/null || true
+[ -f "$ROOT/config.json" ] || printf '{"version":"2.3.4","enforce":"on"}\n' > "$ROOT/config.json" 2>/dev/null || true
 
 N=$(ls "$DIR/evidence" 2>/dev/null | wc -l | tr -d ' ')
 case "$N" in ''|*[!0-9]*) N=0 ;; esac
@@ -523,7 +523,7 @@ if [ "$ROLE" = devops ]; then
     # sign-off gate then had to argue with it about a number it had invented.
     # Built from the ticket and the id alone, both of which the plugin minted,
     # so there is no agent prose in it to escape or truncate.
-    printf '{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"ceremony backlog: the blocker on %s is carried as %s. That is the id and it is the only one: quote %s exactly in the escalation and in act 8, and compose no id of your own. If a correction says an id is missing, add it beside the ids already there - never swap one for another."}}\n' \
+    printf '{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"ceremony backlog: the blocker on %s is carried as %s. Quote %s exactly in the escalation and in act 8, compose no id of your own, and keep it beside any other id already on the record for this ticket - a ticket can carry a blocker and a board condition at once. If a correction says an id is missing, add it beside the ids already there - never swap one for another."}}\n' \
       "$TICKET" "$BLID" "$BLID"
   fi
 fi
