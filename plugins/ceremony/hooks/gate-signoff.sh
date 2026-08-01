@@ -145,25 +145,187 @@ plu() {
 # ends - on the pass path, and on the budget-exhausted path where the render
 # ships as it stands - and never from a turn that was sent back.
 #
-# Both halves dedupe on what is already on disk, so replaying either files
-# nothing twice.
+# Both halves dedupe on identity rather than on wording. What identifies an
+# entry is the ticket that opened it and the kind of thing it is - and, for a
+# board condition, the number the board itself gave it. Never the summary: the
+# summary is prose, it is rewritten every time the response is re-rendered, and
+# a key that moves when the wording moves is not a key. That was the defect:
+# one broken Docker daemon, two backlog ids, and a correction loop where the
+# chair swapped one id for the other until the budget ran out.
+#
+# The one exception is a board condition filed before this version, which
+# carries no number because no version that wrote it had one to give. For those
+# rows the wording is all there is, so the wording is what they are keyed on -
+# the same fallback file_conditions uses. It matters more here than there: this
+# is the half that deletes, and two different conditions from one ticket sharing
+# a key would collapse into one and take the other's wording with it, once,
+# irreversibly, on the first turn after the upgrade.
+#
+# `jrow` is the one reader: sh has no JSON, and every attempt to key on a
+# substring of the prose is how this went wrong the first time.
+jrow='
+function fld(s, n,   r) {
+  r = ""
+  if (match(s, "\"" n "\":\"[^\"]*\"")) {
+    r = substr(s, RSTART, RLENGTH)
+    sub("\"" n "\":\"", "", r); sub("\"$", "", r)
+  }
+  return r
+}
+function num(s, n,   r) {
+  r = ""
+  if (match(s, "\"" n "\":[0-9]+")) { r = substr(s, RSTART, RLENGTH); sub(".*:", "", r) }
+  return r
+}
+function key(s,   k, o, c) {
+  k = fld(s, "kind"); o = fld(s, "opened_by"); c = num(s, "cond")
+  if (k == "" || o == "") return ""
+  if (k == "carried-condition")
+    return o "|" k "|" (c == "" ? "s:" fld(s, "summary") : c)
+  return o "|" k
+}
+function sup(s,   m) {
+  if (match(s, "\"superseded\":\\[[^]]*\\],")) return substr(s, RSTART, RLENGTH)
+  return ""
+}
+'
+
+# --- one writer at a time ----------------------------------------------------
+# Twenty sessions at once is this user's ordinary day, and two of them blocking
+# in one project is not a thought experiment. Both writes below are
+# read-modify-write, and two turns that each read the file before either wrote
+# it would each rebuild the backlog from a version that is already stale - the
+# second rename dropping the first one's row.
+#
+# `mkdir` is the lock, because it is the one atomic create every shell has;
+# `flock` is not on macOS. A lock in a hook is a thing that can be left behind
+# by a turn that was killed, so this one is not waited on forever: after a
+# minute it is not a holder, it is litter, and it is swept. Nothing sleeps -
+# the age check is the wait - and holding it is never required for correctness,
+# only for not doing the work twice. Each write is checked against what it read
+# regardless, so a swept lock cannot cost a row.
+LKD=''
+LKHELD=0
+lock_take() {
+  LKD="$1.lock"
+  LKN=0
+  while [ "$LKN" -lt 40 ]; do
+    LKN=$((LKN + 1))
+    if mkdir "$LKD" 2>/dev/null; then LKHELD=1; return 0; fi
+    find "$LKD" -maxdepth 0 -mmin +1 -exec rm -rf {} + 2>/dev/null
+  done
+  LKHELD=0
+  return 1
+}
+lock_drop() {
+  [ "$LKHELD" = 1 ] && rmdir "$LKD" 2>/dev/null
+  LKHELD=0
+  return 0
+}
+
+# --- the litter every version that filed before this one left behind ---------
+# A project that has already been through the defect holds two rows for one
+# blocker, and nothing in either of them says which was meant. They collapse
+# onto the oldest id, because that is the one an earlier response is most likely
+# to have printed for the user, and the id that loses is recorded on the
+# survivor rather than disappearing: a session that quoted it can still find out
+# where it went. This runs on every turn, before anything reads the file.
+heal_backlog() {
+  BLF="$CWD/.ceremony/backlog.jsonl"
+  [ -f "$BLF" ] || return 0
+  HTMP="$BLF.heal.$$"
+  lock_take "$BLF" || :
+  HBEFORE=$(cat "$BLF" 2>/dev/null) || HBEFORE=''
+  awk "$jrow"'
+    { if ($0 == "") next
+      order[++n] = $0; k = key($0); rk[n] = k
+      if (k == "") next
+      if (k in first) { id = fld($0, "id")
+        if (id != "") extra[k] = extra[k] (extra[k] == "" ? "" : ",") "\"" id "\""
+        order[n] = ""; dropped = 1; next }
+      first[k] = n }
+    END {
+      if (!dropped) exit 3
+      for (i = 1; i <= n; i++) {
+        row = order[i]
+        if (row == "") continue
+        k = rk[i]
+        if (k != "" && (k in extra)) {
+          s = sup(row)
+          if (s != "") sub("\"superseded\":\\[", "\"superseded\":[" extra[k] ",", row)
+          else sub("\"status\":\"", "\"superseded\":[" extra[k] "],\"status\":\"", row)
+        }
+        print row
+      }
+    }' "$BLF" > "$HTMP" 2>/dev/null
+  # awk exits 3 when it found nothing to collapse, and then nothing is written.
+  # The same check as the promotion below: only replace a file that is still the
+  # one this turn read.
+  if [ $? -eq 0 ] && [ "$(cat "$BLF" 2>/dev/null)" = "$HBEFORE" ]; then
+    mv "$HTMP" "$BLF" 2>/dev/null || rm -f "$HTMP" 2>/dev/null
+  else
+    rm -f "$HTMP" 2>/dev/null
+  fi
+  lock_drop
+  return 0
+}
+
 promote_restore() {
   BLDIR="$CWD/.ceremony"
   [ -d "$BLDIR" ] || return 0
   BLF="$BLDIR/backlog.jsonl"
   PEND="$BLDIR/$TICKET/carry.jsonl"
   [ -f "$PEND" ] || return 0
-  HAVE=''
-  [ -f "$BLF" ] && HAVE=$(sed -n 's/.*"id":"\(CER-BL-[0-9]*\)".*/\1/p' "$BLF" 2>/dev/null)
-  while IFS= read -r row; do
-    case "$row" in *'"kind":"restore-verification"'*) ;; *) continue ;; esac
-    rid=$(printf '%s' "$row" | sed -n 's/.*"id":"\(CER-BL-[0-9]*\)".*/\1/p')
-    [ -n "$rid" ] || continue
-    case " $(printf '%s' "$HAVE" | tr '\n' ' ') " in *" $rid "*) continue ;; esac
-    printf '%s\n' "$row" >> "$BLF" 2>/dev/null || true
-    HAVE="$HAVE
-$rid"
-  done < "$PEND"
+  PTMP="$BLF.promote.$$"
+  # Three things keep this write whole, and the lock above is only the first.
+  # The rename is atomic and lands in the same directory, so no reader ever
+  # sees half a file. Nothing is written at all when the result matches what is
+  # already there, which is the ordinary case - a re-render promotes what it
+  # promoted before. And what is written is checked against what was read: if
+  # the file moved underneath this turn, the work is redone on the newer
+  # version rather than written over it.
+  lock_take "$BLF" || :
+  # Creating the empty file belongs inside the lock too: it truncates, and a
+  # turn that created it a moment after another turn filled it would empty it.
+  [ -f "$BLF" ] || : > "$BLF" 2>/dev/null || { lock_drop; return 0; }
+  ATT=0
+  while [ "$ATT" -lt 5 ]; do
+    ATT=$((ATT + 1))
+    BEFORE=$(cat "$BLF" 2>/dev/null) || BEFORE=''
+    # A pending row whose identity is already filed is the same blocker, whatever
+    # either row now calls it. The filed row keeps its id and takes the newer
+    # wording, because the newer wording describes the attempt made last. There is
+    # no branch here that appends a second row for something already carried.
+    awk -v pend="$PEND" "$jrow"'
+      { order[++n] = $0; k = key($0); if (k != "") at[k] = n }
+      END {
+        while ((getline line < pend) > 0) {
+          if (line !~ /"kind":"restore-verification"/) continue
+          k = key(line); id = fld(line, "id")
+          if (k == "" || id == "") continue
+          if (k in at) {
+            i = at[k]; old = fld(order[i], "id")
+            if (old != "" && old != id) sub("\"id\":\"" id "\"", "\"id\":\"" old "\"", line)
+            s = sup(order[i])
+            if (s != "" && sup(line) == "") sub("\"status\":\"", s "\"status\":\"", line)
+            order[i] = line
+          } else { order[++n] = line; at[k] = n }
+        }
+        close(pend)
+        for (i = 1; i <= n; i++) if (order[i] != "") print order[i]
+      }' "$BLF" > "$PTMP" 2>/dev/null || { rm -f "$PTMP" 2>/dev/null; break; }
+    if cmp -s "$PTMP" "$BLF" 2>/dev/null; then
+      rm -f "$PTMP" 2>/dev/null
+      break
+    fi
+    NOW=$(cat "$BLF" 2>/dev/null) || NOW=''
+    if [ "$NOW" = "$BEFORE" ]; then
+      mv "$PTMP" "$BLF" 2>/dev/null || rm -f "$PTMP" 2>/dev/null
+      break
+    fi
+    rm -f "$PTMP" 2>/dev/null
+  done
+  lock_drop
   return 0
 }
 
@@ -200,13 +362,22 @@ file_conditions() {
     [ -n "$sum" ] || sum="board condition $dn carried to the next sprint"
     NEXTN=$((NEXTN + 1))
     cid=$(printf 'CER-BL-%04d' "$NEXTN")
-    # A condition already carried from this ticket is not carried twice.
-    if [ -f "$BLF" ] && grep -q '"kind":"carried-condition"' "$BLF" 2>/dev/null &&
-       grep '"opened_by":"'"$TICKET"'"' "$BLF" 2>/dev/null | grep -qF "$sum" 2>/dev/null; then
+    # Already carried from this ticket? The board's own number is what says so.
+    # A ticket can carry two different conditions and they are two entries, so
+    # the number is part of the identity and the wording is no part of it at
+    # all. A row filed by an earlier version carries no number, and for those
+    # rows the wording is the only thing left to recognise them by.
+    if [ -f "$BLF" ] && awk -v t="$TICKET" -v c="$dn" -v s="$sum" '
+         index($0, "\"kind\":\"carried-condition\"") > 0 {
+           if (index($0, "\"opened_by\":\"" t "\"") == 0) next
+           if (index($0, "\"cond\":" c ",") > 0) { f = 1; exit }
+           if ($0 !~ /"cond":[0-9]+/ && index($0, "\"summary\":\"" s "\"") > 0) { f = 1; exit }
+         }
+         END { exit f ? 0 : 1 }' "$BLF" 2>/dev/null; then
       continue
     fi
-    printf '{"id":"%s","ts":"%s","kind":"carried-condition","opened_by":"%s","sprint_opened":%s,"summary":"%s","needs":"apply the condition","command":"none","owner":"Change Advisory Board","status":"open"}\n' \
-      "$cid" "$TSN" "$TICKET" "$SPR" "$sum" >> "$BLF" 2>/dev/null || true
+    printf '{"id":"%s","ts":"%s","kind":"carried-condition","cond":%s,"opened_by":"%s","sprint_opened":%s,"summary":"%s","needs":"apply the condition","command":"none","owner":"Change Advisory Board","status":"open"}\n' \
+      "$cid" "$TSN" "$dn" "$TICKET" "$SPR" "$sum" >> "$BLF" 2>/dev/null || true
   done
   return 0
 }
@@ -217,6 +388,7 @@ finish() {
   exit 0
 }
 
+heal_backlog 2>/dev/null || true
 promote_restore 2>/dev/null || true
 
 # ---------------------------------------------------------------------------
@@ -739,25 +911,37 @@ MISSED=''
 for b in $ONDISK; do
   case " $(printf '%s' "$INTEXT" | tr '\n' ' ') " in *" $b "*) ;; *) MISSED="$MISSED $b" ;; esac
 done
-if [ -n "$GHOST" ]; then
-  note "AC \\u00b7 The response names a backlog ticket that does not exist:$GHOST. Nothing on disk carries that id - not .ceremony/backlog.jsonl, not this ticket's pending carry-over.\\n\\nBacklog ids are minted by the plugin when a blocker is actually carried, and they are handed to you in the turn state and in CEREMONY_CARRIED. A ticket id you composed yourself points at nothing, and the next session that reads the backlog will not find it. Quote the id the plugin minted, or say in words that a follow-up is proposed and file nothing."
-fi
-if [ -n "$MISSED" ]; then
-  note "AC \\u00b7 A backlog ticket was filed for $TICKET and the response never mentions it:$MISSED. A carried blocker the user is not told about is a promise made behind their back.\\n\\nName it where it belongs: on the Carried line of the sprint-roll block if the sprint rolled, in the escalation as Backlog: <id> stays open until it does, and in act 8 as the action item it is. One mention is enough; none is not."
+# Both directions in one correction. They used to be two notes, and a response
+# that named one id while the disk held another satisfied whichever note it was
+# shown: the chair replaced the id it had with the id the message quoted, which
+# turned the missing half into the invented half and came straight back. The
+# only correction that terminates is the one that shows the whole disagreement
+# and says which way to move.
+if [ -n "$GHOST" ] || [ -n "$MISSED" ]; then
+  ACMSG="AC \\u00b7 The backlog on disk and the backlog ids in the response do not agree. Everything found is listed here, and it is one correction rather than several."
+  [ -n "$MISSED" ] && ACMSG="$ACMSG\\n\\nFiled for $TICKET, and the response never mentions it:$MISSED"
+  [ -n "$GHOST" ] && ACMSG="$ACMSG\\n\\nNamed in the response, and on disk nowhere:$GHOST"
+  ACMSG="$ACMSG\\n\\nAdd what is missing beside what is already there. Do not turn one id into another: an id the plugin filed and an id the response composed are opposite defects, and swapping the first for the second only changes which half is wrong. A re-render that adds every filed id and removes every composed one clears this in a single pass."
+  ACMSG="$ACMSG\\n\\nA filed id belongs on the Carried line of the sprint-roll block if the sprint rolled, in the escalation as Backlog: <id> stays open until it does, and in act 8 as the action item it is. One mention of each is enough; none is not. An id nothing carries was written rather than minted - the plugin mints them when a blocker is really carried, and it hands the id back the moment ceremony:devops returns. Quote that one, or propose a follow-up in words and file nothing."
+  note "$ACMSG"
 fi
 
 # --- AD: only two kinds are ever carried ------------------------------------
 # The scope discipline, made mechanical. A process that can file its own tickets
 # and also decide what they are about is the failure mode this plugin is a joke
 # about, so the set of things it may file is closed at two.
+# Every offending line, not the first of them. A correction that shows one of
+# three sends the same turn back three times, and the budget is two.
 BADKIND=$(printf '%s' "$MSG" | grep '^Carried:' 2>/dev/null |
-  grep -v 'restore-verification' | grep -v 'carried-condition' | head -n 1)
+  grep -v 'restore-verification' | grep -v 'carried-condition' |
+  awk '{ printf "%s  %s", (NR > 1 ? "\\n" : ""), $0 }')
 if [ -n "$BADKIND" ]; then
-  note "AD \\u00b7 A Carried line names something outside the two kinds the backlog holds:\\n  $BADKIND\\n\\nExactly two things may ever be carried into a following sprint, and there is no third:\\n  restore-verification \\u00b7 a blocker that stops the user's request being verified\\n  carried-condition \\u00b7 a Change Advisory Board MUST that was not applied this turn\\n\\nEverything else - a SHOULD, a NICE, a reviewer's nice-to-have, a retrospective action item, something ops noticed about the repository - is rendered under Proposed backlog (not filed) and written nowhere. It never becomes a ticket and it is never picked up by a later sprint. The loop converges on delivering what the user asked for; it has no mechanism for widening, and that is deliberate."
+  note "AD \\u00b7 A Carried line names something outside the two kinds the backlog holds:\\n$BADKIND\\n\\nExactly two things may ever be carried into a following sprint, and there is no third:\\n  restore-verification \\u00b7 a blocker that stops the user's request being verified\\n  carried-condition \\u00b7 a Change Advisory Board MUST that was not applied this turn\\n\\nEverything else - a SHOULD, a NICE, a reviewer's nice-to-have, a retrospective action item, something ops noticed about the repository - is rendered under Proposed backlog (not filed) and written nowhere. It never becomes a ticket and it is never picked up by a later sprint. The loop converges on delivering what the user asked for; it has no mechanism for widening, and that is deliberate."
 fi
-CARRSN=$(printf '%s' "$MSG" | grep '^Carried:' 2>/dev/null | grep -E '\[SHOULD\]|\[NICE\]' | head -n 1)
+CARRSN=$(printf '%s' "$MSG" | grep '^Carried:' 2>/dev/null | grep -E '\[SHOULD\]|\[NICE\]' |
+  awk '{ printf "%s  %s", (NR > 1 ? "\\n" : ""), $0 }')
 if [ -n "$CARRSN" ]; then
-  note "AD \\u00b7 A SHOULD or NICE condition is rendered as carried:\\n  $CARRSN\\n\\nOnly a MUST is carried. A SHOULD or a NICE that was not applied is disposed of in act 4 - waived, with the reason that is the point of the line - and if it is worth doing later it goes under Proposed backlog (not filed), where it is a suggestion to the user and not a commitment by the process."
+  note "AD \\u00b7 A SHOULD or NICE condition is rendered as carried:\\n$CARRSN\\n\\nOnly a MUST is carried. A SHOULD or a NICE that was not applied is disposed of in act 4 - waived, with the reason that is the point of the line - and if it is worth doing later it goes under Proposed backlog (not filed), where it is a suggestion to the user and not a commitment by the process."
 fi
 
 # --- AE: the roll on the page and the roll on disk --------------------------

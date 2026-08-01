@@ -214,7 +214,7 @@ ROOT="$CWD/.ceremony"
 DIR="$ROOT/$TICKET"
 mkdir -p "$DIR/evidence" 2>/dev/null || { rm -f "$TMPIN"; exit 0; }
 [ -f "$ROOT/.gitignore" ] || printf '*\n' > "$ROOT/.gitignore" 2>/dev/null || true
-[ -f "$ROOT/config.json" ] || printf '{"version":"2.3.2","enforce":"on"}\n' > "$ROOT/config.json" 2>/dev/null || true
+[ -f "$ROOT/config.json" ] || printf '{"version":"2.3.3","enforce":"on"}\n' > "$ROOT/config.json" 2>/dev/null || true
 
 N=$(ls "$DIR/evidence" 2>/dev/null | wc -l | tr -d ' ')
 case "$N" in ''|*[!0-9]*) N=0 ;; esac
@@ -446,14 +446,19 @@ if [ "$ROLE" = devops ]; then
   # entry on the terminal path too, once per ticket. The invariant this keeps is
   # the one worth having: verification that stopped short is on disk, whether
   # the loop advances or ends, and no sprint ever rolls carrying nothing.
-  MINT=no
-  [ "$ROLL" = maybe ] && MINT=yes
-  if [ "$MINT" = no ]; then
-    case "$TOKEN" in
-      OPS-BLOCKED|OPS-NEEDS-CHANGE)
-        grep -q '"kind":"restore-verification"' "$DIR/carry.jsonl" 2>/dev/null || MINT=yes ;;
-    esac
-  fi
+  # One blocker, one id. What identifies an entry is the ticket that opened it
+  # and the kind of thing it is - never its wording, which is rephrased on every
+  # re-render. The old guard read this ticket's carry.jsonl and nothing else, so
+  # a row already promoted into backlog.jsonl, in a ticket directory that no
+  # longer held it, looked like a blocker nobody had carried: the same broken
+  # Docker daemon was minted a second id, and the response then had to name two
+  # tickets for one failure or leave one of them unmentioned.
+  CARRY=no
+  case "$TOKEN" in OPS-BLOCKED|OPS-NEEDS-CHANGE) CARRY=yes ;; esac
+  PRIOR=$(cat "$ROOT/backlog.jsonl" "$ROOT"/*/carry.jsonl 2>/dev/null |
+    grep '"kind":"restore-verification"' 2>/dev/null |
+    grep -F '"opened_by":"'"$TICKET"'"' 2>/dev/null |
+    sed -n 's/.*"id":"\(CER-BL-[0-9][0-9]*\)".*/\1/p' | head -n 1)
 
   if [ "$ROLL" = maybe ]; then
     OFF=$(cat "$ROOT/sprint-offset" 2>/dev/null) || OFF=0
@@ -464,15 +469,19 @@ if [ "$ROLE" = devops ]; then
     printf 'CEREMONY_ROLLS=%s\n' "$((ROLLS + 1))" >> "$SENV" 2>/dev/null || true
   fi
 
-  if [ "$MINT" = yes ]; then
-    # The next free backlog id, across what is filed and what is pending. The
-    # entry itself is written by the sign-off gate on the pass path, because
-    # the disposition of a condition is only known once the response exists.
-    NEXTID=$(cat "$ROOT/backlog.jsonl" "$ROOT"/*/carry.jsonl 2>/dev/null |
-      sed -n 's/.*"id":"CER-BL-\([0-9][0-9]*\)".*/\1/p' | sort -n | tail -n 1)
-    NEXTID=$(int "$NEXTID")
-    NEXTID=$((NEXTID + 1))
-    BLID=$(printf 'CER-BL-%04d' "$NEXTID")
+  if [ "$CARRY" = yes ]; then
+    # An id already standing for this blocker is the id. Only a blocker nobody
+    # has carried gets a new one, taken from the highest in use across what is
+    # filed and what is pending.
+    if [ -n "$PRIOR" ]; then
+      BLID=$PRIOR
+    else
+      NEXTID=$(cat "$ROOT/backlog.jsonl" "$ROOT"/*/carry.jsonl 2>/dev/null |
+        sed -n 's/.*"id":"CER-BL-\([0-9][0-9]*\)".*/\1/p' | sort -n | tail -n 1)
+      NEXTID=$(int "$NEXTID")
+      NEXTID=$((NEXTID + 1))
+      BLID=$(printf 'CER-BL-%04d' "$NEXTID")
+    fi
 
     SPRINT=$(sed -n 's/^CEREMONY_SPRINT=//p' "$SENV" 2>/dev/null | tail -n 1)
     SPRINT=$(int "$SPRINT")
@@ -489,10 +498,33 @@ if [ "$ROLE" = devops ]; then
       [ "$SUM" = "verification blocked; restoration attempted and incomplete" ] &&
         SUM="restoration requires a change ops cannot make: $OCHANGE"
     fi
+    # The row is replaced rather than appended to. A second attempt on the same
+    # ticket refreshes what is carried - the mechanism that failed this time,
+    # the one still untried - under the id the blocker already had, so a rewrite
+    # can never leave two rows behind describing one thing.
+    CTMP="$DIR/carry.jsonl.tmp.$$"
+    if [ -f "$DIR/carry.jsonl" ]; then
+      grep -v '"kind":"restore-verification"' "$DIR/carry.jsonl" 2>/dev/null > "$CTMP" || true
+    else
+      : > "$CTMP" 2>/dev/null || true
+    fi
     printf '{"id":"%s","ts":"%s","kind":"restore-verification","opened_by":"%s","sprint_opened":%s,"summary":"%s","needs":"%s","command":"%s","owner":"DevOps Engineer","status":"open"}\n' \
-      "$BLID" "$TS" "$TICKET" "$SPRINT" "$SUM" "$NEEDS" "$OCMD" >> "$DIR/carry.jsonl" 2>/dev/null || true
+      "$BLID" "$TS" "$TICKET" "$SPRINT" "$SUM" "$NEEDS" "$OCMD" >> "$CTMP" 2>/dev/null || true
+    mv "$CTMP" "$DIR/carry.jsonl" 2>/dev/null || rm -f "$CTMP" 2>/dev/null || true
 
     printf 'CEREMONY_CARRIED=%s\n' "$BLID" >> "$SENV" 2>/dev/null || true
+
+    # And the id is said out loud, to the one reader who has to write it down.
+    # The output style tells the chair the id is handed to it; until now nothing
+    # handed it over. The ledger row is on disk and the session env has it, but
+    # the chair reads neither, and the backlog line in the turn state was
+    # assembled before this agent ran. So a chair told to name an id it had
+    # never been given wrote the one that looks right - CER-BL-0001 - and the
+    # sign-off gate then had to argue with it about a number it had invented.
+    # Built from the ticket and the id alone, both of which the plugin minted,
+    # so there is no agent prose in it to escape or truncate.
+    printf '{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"ceremony backlog: the blocker on %s is carried as %s. That is the id and it is the only one: quote %s exactly in the escalation and in act 8, and compose no id of your own. If a correction says an id is missing, add it beside the ids already there - never swap one for another."}}\n' \
+      "$TICKET" "$BLID" "$BLID"
   fi
 fi
 

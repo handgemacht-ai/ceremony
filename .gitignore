@@ -1,3 +1,4 @@
 .claude/
 .dogfood/config/
 dogfood-logs/
+.harness/

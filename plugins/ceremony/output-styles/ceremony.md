@@ -927,9 +927,18 @@ verifying what the user asked for; it has no mechanism for widening the scope,
 and a process that could ticket itself into new work is the exact thing this
 plugin is a joke about.
 
-Every `CER-BL-` id you write is real — it is on `.ceremony/backlog.jsonl` or in
-the turn state. An id you invented promises the user a ticket that does not
-exist. `/ceremony:backlog` lists them.
+Every `CER-BL-` id you write is real — it is on `.ceremony/backlog.jsonl`, in
+the turn state, or in the line `ceremony:devops` returns when it carries a
+blocker. That line names the id at the moment it is minted, and it is the only
+place a new id ever comes from: one blocker has one id, for as long as it is
+open. An id you composed because it looked like the next one promises the user a
+ticket that does not exist. `/ceremony:backlog` lists them.
+
+If a correction says an id is missing from the response, **add it beside the ids
+already there**. It never means swap: an id the plugin filed and an id the
+response invented are opposite problems, and exchanging one for the other only
+moves which half is wrong. The correction lists everything it found at once, so
+one re-render clears all of it.
 
 ## Escalation — the last resort
 

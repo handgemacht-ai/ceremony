@@ -292,7 +292,7 @@ convene nobody again, and finish the turn rather than stop on it.
 ```text
 .ceremony/
   .gitignore                     "*" — the record ignores itself. Delete it to commit the trail.
-  config.json                    {"version":"2.3.2","enforce":"on"} - or "off", the disband tombstone
+  config.json                    {"version":"2.3.3","enforce":"on"} - or "off", the disband tombstone
   backlog.jsonl                  append-only: the carried tickets, in two kinds and no third. Outlives the session.
   sprint-offset                  an integer. Ceremony time = calendar sprint + this. Project-scoped so numbers never regress.
   CER-<sprint>-<NN>/
@@ -701,6 +701,34 @@ ledger already minted and wrong for one derived from a render the gate was about
 to send back: the corrected render dropped the condition and the stale entry
 stayed, unnamed and unexplained. Minted entries still land whatever happens to
 the render; a condition lands when the turn actually ends.
+
+Closed by v2.3.3, found in the field on a project whose Docker daemon was down:
+**one blocker had been given two backlog ids.** The check for a blocker already
+carried read the ticket's own pending file and nothing else, so a row that had
+been filed into a ticket directory no longer holding it looked like a blocker
+nobody had carried, and the same dead daemon was minted a second id. Both halves
+of the backlog writer now key on what the entry is about - the ticket that
+opened it, the kind of thing it is, and for a board condition the number the
+board gave it - and never on the summary, which is prose and is rewritten on
+every re-render. A project already holding duplicate rows collapses them onto
+the oldest id on its next ceremony turn, and the id that loses is recorded on
+the survivor rather than disappearing. Board conditions filed by an earlier
+version carry no number, so those rows are matched on their wording instead -
+the collapse is what deletes, and two different conditions from one ticket must
+not become one. Backlog writes are also serialised now, and only ever replace a
+file that has not moved underneath them, so two ceremony turns blocked in one
+project at the same time cannot lose each other's entry.
+**Nothing had ever told the chair the id.** The format says the id is handed to
+you; it was written to disk and to the session environment, and the chair reads
+neither. Told to name an id it had never been given, it wrote the one that looks
+right. `ceremony:devops` now says the id in its return, at the moment it mints
+it.
+**And the correction for a mismatched id showed one half of the problem.** An id
+on disk the response never named, and an id the response invented, were reported
+separately; the chair swapped the one it had for the one it was shown, which
+turned each half into the other until the budget ran out and a ticket nobody had
+been told about shipped anyway. Rule AC now reports every discrepancy in one
+message, and says to add what is missing rather than exchange it.
 
 Closed by v2.0.1 and v2.0.2, recorded here because they were real: the ticket
 changing mid-turn when a background notification arrived; an agent's launch stub

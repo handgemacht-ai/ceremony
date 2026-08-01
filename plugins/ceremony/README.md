@@ -317,6 +317,17 @@ corrections had already gone on formatting, now refused outside the budget; and
 a rejected render that filed the board condition it named, leaving an entry
 behind that the corrected render never mentioned.
 
+Closed by v2.3.3: one blocker carried under two backlog ids, because the
+already-carried check read one file and the dedupe keyed on wording; a chair
+told to name an id nothing had ever handed it, which invented one; and a
+correction that reported half of an id mismatch at a time, which the chair
+satisfied by swapping rather than adding. Identity is now the ticket, the kind
+and the board's condition number; the ops return says the id out loud; and rule
+AC reports every discrepancy at once. A project already holding duplicate rows
+heals on its next ceremony turn, keeping rows an earlier version filed without a
+condition number apart by their wording. Two turns writing the backlog at once
+cannot lose each other's entry.
+
 `.ceremony/` appears the first time a turn changes a file. It ignores itself,
 arms nothing on its own, and `/ceremony:disband` removes the ticket records
 inside it, leaving the tombstone behind.
