@@ -754,6 +754,21 @@ ticket. It is scoped to the rows this ticket opened now, the same way the writer
 scopes the id it reuses. The line handed to the chair when an id is minted no
 longer calls that id the only one, either: a ticket can carry a blocker and a
 board condition at once, and both belong on the page.
+**A promotion also used to retire an id and leave it lying where it was found.**
+The filed row keeps the id it was given, which is the point of it, so promoting a
+pending row that had been minted under a different id retires the pending one —
+and `carry.jsonl` went on holding it. Rule AC reads that file too, so the retired
+id was still on disk and was still demanded of every render that followed, which
+is a correction naming a ticket the backlog no longer knows about. The pending
+row is moved onto the id that survived.
+**And four corrections said "render this shape" and then printed the empty
+slots.** The disposition lines, the escalation block, the deviations subsection
+and the sprint roll all shipped `<what was done>`, `<the command>`, `<n>` and
+their kind — and rule U refuses an unfilled angle-bracket slot in the response,
+so a turn that did as it was told was corrected for doing it. They carry filled
+examples now, the way the output style's own blocks always have. The sweep that
+reads the shipped templates reads the hooks' correction strings for this too, so
+the next one is caught where it is written.
 
 Closed by v2.0.1 and v2.0.2, recorded here because they were real: the ticket
 changing mid-turn when a background notification arrived; an agent's launch stub

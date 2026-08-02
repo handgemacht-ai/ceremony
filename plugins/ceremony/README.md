@@ -339,7 +339,13 @@ builder composes the Engineer line for every rule that names it, from the verdic
 and the measurement, with counts on the implemented shape alone and
 `withheld (MALFORMED)` for a return that could not be read. Rule AC is scoped to
 the rows this ticket opened, and the minted id is quoted beside whatever else is
-already on the record.
+already on the record. A promotion that retires a pending id now moves the
+pending row onto the id that survived, instead of leaving the retired one on disk
+where the same rule went on demanding it. And four corrections that said "render
+this shape" printed the empty slots — `<what was done>`, `<the command>`, `<n>` —
+which the rule against unfilled placeholders then refused; they carry filled
+examples now, and the template sweep reads the hooks' own correction strings so
+the next one is caught where it is written.
 
 `.ceremony/` appears the first time a turn changes a file. It ignores itself,
 arms nothing on its own, and `/ceremony:disband` removes the ticket records
