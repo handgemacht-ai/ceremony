@@ -291,8 +291,8 @@ Every response follows the eight acts, in order, in this exact shape:
 - Freeze: <the freeze line from the turn state>
 - Verdict: Approved with conditions
 - Conditions: 1 [SHOULD] … · 2 [NICE] …
-- Disposition: 1 applied — <what was done>
-- Disposition: 2 waived — <reason>
+- Disposition: 1 applied — the rollback note is on the ticket
+- Disposition: 2 waived — NICE, and the release does not turn on it
 
 **5 · IMPLEMENTATION** — ceremony:engineer
 - <what the diff you read actually does, from the diff, not from the return>
@@ -700,10 +700,10 @@ one shape, and it is this one:
 
 ```text
 **5a · CONFORMANCE REVIEW** — ceremony:reviewer
-- 1 MET · <the criterion, verbatim> — <file:line>
-- 2 MET · <the criterion, verbatim> — <file:line>
-- 3 UNMET · <the criterion, verbatim> — <what is missing>
-- 4 EXTRA · <what was changed that nothing asked for> — <file:line>
+- 1 MET · the upload accepts a file up to 10 MB — upload.go:41
+- 2 MET · a file over the limit is rejected with 413 — upload.go:58
+- 3 UNMET · the limit is configurable — no setting was added
+- 4 EXTRA · the request log now records the file name — upload.go:72
 ```
 
 One bullet per `CEREMONY-CRIT:` line the Reviewer returned, in its order, keeping
@@ -722,8 +722,8 @@ with a **Deviations** subsection carrying one line per finding:
 
 ```text
 Deviations
-- 2 UNMET · <the criterion, verbatim> — <what is missing>
-- 4 EXTRA · <what was changed that nothing asked for> — <file:line>
+- 3 UNMET · the limit is configurable — no setting was added
+- 4 EXTRA · the request log now records the file name — upload.go:72
 ```
 
 One line per `UNMET` and one per `EXTRA`, and the sign-off gate counts them
@@ -831,9 +831,9 @@ Act 4 quotes them on its Conditions line, and then carries **one `Disposition:`
 line per condition**, in the same numbering, in one of exactly three shapes:
 
 ```text
-Disposition: <n> applied — <what was done>
-Disposition: <n> waived — <reason>
-Disposition: <n> carried — action item recorded (owner: <who> · due: <when>)
+Disposition: 1 applied — the retry cap was lowered to 3
+Disposition: 2 waived — NICE, and the release does not turn on it
+Disposition: 3 carried — action item recorded (owner: ceremony:devops · due: next sprint)
 ```
 
 There is no fourth form, and there is no such thing as a condition with no
@@ -961,8 +961,8 @@ nice-to-haves, an ops opinion about the repository — is rendered under
 
 ```text
 Proposed backlog (not filed)
-- <the SHOULD condition> — proposed by the Change Advisory Board; not filed.
-- <the retro action item> — proposed in act 8; not filed.
+- Make the upload limit configurable — proposed by the Change Advisory Board; not filed.
+- Run the reviewer before the board next time — proposed in act 8; not filed.
 ```
 
 A proposal is a sentence, not a ticket. It never becomes work on its own, and
@@ -1025,7 +1025,7 @@ ambiguous request, and that happens in act 2, before anything was built.
 The closing line then gains a verification clause:
 
 ```text
-━━━ Velocity: <n> pts across <n> tickets · this ticket: <n> pts · Ceremony artifacts: 8 · Work delivered: yes · Verification: blocked (escalated) ━━━
+━━━ Velocity: 13 pts across 3 tickets · this ticket: 5 pts · Ceremony artifacts: 8 · Work delivered: yes · Verification: blocked (escalated) ━━━
 ```
 
 A bare `Work delivered: yes` while an acceptance criterion could not be checked
@@ -1126,7 +1126,7 @@ because the path is short. The standard path's fifth clause, `Committed: no`, is
 not one of them — nothing was written, so there is nothing to say about it:
 
 ```text
-Velocity: <n> pts across <n> tickets · this ticket: 0 pts (LCP-2) · Ceremony artifacts: 8 · Work delivered: yes
+Velocity: 13 pts across 3 tickets · this ticket: 0 pts (LCP-2) · Ceremony artifacts: 8 · Work delivered: yes
 ```
 
 `across <n> tickets` is the clause most often lost and it stays. `Work

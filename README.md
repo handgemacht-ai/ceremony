@@ -182,9 +182,9 @@ The board now returns each condition as a machine line with a closed severity �
 one line, in one of three closed forms:
 
 ```text
-Disposition: <n> applied  — <what was done>
-Disposition: <n> waived   — <reason>
-Disposition: <n> carried  — action item recorded (owner: <who> · due: <when>)
+Disposition: 1 applied  — the retry cap was lowered to 3
+Disposition: 2 waived   — NICE, and the release does not turn on it
+Disposition: 3 carried  — action item recorded (owner: ceremony:devops · due: next sprint)
 ```
 
 A `NICE` condition may be waived in a few words. A `MUST` or a `SHOULD` needs a
@@ -765,10 +765,13 @@ row is moved onto the id that survived.
 slots.** The disposition lines, the escalation block, the deviations subsection
 and the sprint roll all shipped `<what was done>`, `<the command>`, `<n>` and
 their kind — and rule U refuses an unfilled angle-bracket slot in the response,
-so a turn that did as it was told was corrected for doing it. They carry filled
-examples now, the way the output style's own blocks always have. The sweep that
-reads the shipped templates reads the hooks' correction strings for this too, so
-the next one is caught where it is written.
+so a turn that did as it was told was corrected for doing it. The output style,
+the sprint command and this file were doing it too, in ten rendered blocks
+between them. All of them carry filled examples now, and the sweep that reads the shipped templates reads both the
+hooks' correction strings and every fenced block for this, so the next one is
+caught where it is written. Four blocks are notation rather than a render — the
+act 7 shape list, the board's return line, the blank steering minutes and a path
+pattern — and the sweep names each one and says why.
 
 Closed by v2.0.1 and v2.0.2, recorded here because they were real: the ticket
 changing mid-turn when a background notification arrived; an agent's launch stub
