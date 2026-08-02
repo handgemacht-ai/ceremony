@@ -105,6 +105,18 @@ DevOps Engineer — nothing to restore (OPS-NOTHING-TO-DO, ceremony:devops)
 DevOps Engineer — withheld (role not convened)
 ```
 
+The Engineer's line carries no tick either, for the older reason: it wrote the
+change and a role that approves its own work has been reviewed by nobody. Its
+shapes are picked by the verdict, and counts belong to the first of them alone —
+a blocked engineer wrote nothing, whatever else is in the working tree:
+
+```text
+Engineer — implemented (ENG-IMPLEMENTED, ceremony:engineer) · 3 files, +48 −12
+Engineer — not implemented (ENG-BLOCKED, ceremony:engineer) · 0 files
+Engineer — nothing to implement (ENG-NO-CHANGE, ceremony:engineer) · 0 files
+Engineer — withheld (MALFORMED)
+```
+
 A ✓ may be written only for `PO-ACCEPT`, `ARCH-RECORDED`, `CAB-APPROVED`,
 `CAB-APPROVED-WITH-CONDITIONS`, `QA-PASS` and `SC-ALIGNED-WITH-RESERVATIONS`,
 and only where a ledger entry from this turn carries that token. Everything

@@ -563,7 +563,17 @@ reviewed by anyone. Its line is the fourth shape and carries no ✓:
 Engineer — implemented (ENG-IMPLEMENTED, ceremony:engineer) · 3 files, +48 −12
 Engineer — not implemented (ENG-BLOCKED, ceremony:engineer) · 0 files
 Engineer — nothing to implement (ENG-NO-CHANGE, ceremony:engineer) · 0 files
+Engineer — withheld (MALFORMED)
 ```
+
+The verdict picks the line and the three are not interchangeable: a line reading
+`implemented (ENG-BLOCKED)` says two opposite things at once, and the half a
+reader believes is the first. The fourth is for a return whose closing line was
+none of the three — `MALFORMED` withholds like every other non-signing token, and
+act 5 says the return could not be read. Counts belong to the first shape only.
+An engineer that edited files and *then* hit a blocker still signs `0 files`:
+what the line reports is what its verdict delivered, and what is in the working
+tree is act 1's business and act 5's.
 
 The counts come from the ledger, which measures the working tree before the
 Engineer is convened and again when it returns, and takes the difference. That is
@@ -638,6 +648,40 @@ two exceptions, and both are printed above in full.
 The Scrum Master's line says that the chair does not sign, and that is the whole
 of its content. The chair briefed the Engineer and read the diff; neither is an
 approval, and there is no token for either.
+
+### A turn that delivered nothing signs nothing
+
+When the Engineer returns `ENG-BLOCKED`, `ENG-NO-CHANGE` or a verdict that could
+not be read, **act 7 carries no ✓ anywhere**. There is no change for a signature
+to be about, and a tick on such a turn signs for work that does not exist.
+
+Every signing line withholds, each with **its own** token in the brackets — never
+a neighbour's, and never `role not convened` for a role that did sit:
+
+```text
+Product Owner — withheld (PO-ACCEPT)
+Reviewer — withheld (REV-NOTHING-TO-REVIEW)
+Change Advisory Board — withheld (CAB-APPROVED-WITH-CONDITIONS)
+QA Sign-off Officer — withheld (QA-BLOCKED)
+```
+
+A Product Owner that accepted the criteria still reads `withheld (PO-ACCEPT)`:
+accepting criteria is not signing off a change that was never made. A board that
+approved reads `withheld (CAB-APPROVED)` or `withheld (CAB-APPROVED-WITH-CONDITIONS)`
+for the same reason — the token is the board's own last word and stays quoted,
+and the withholding is about the turn rather than about the board.
+
+The Engineer's line is the one exception: it quotes its own outcome in the shape
+its verdict picks, from the four printed above.
+
+The three fixed lines are not signatures and do not change on a blocked turn.
+They stay exactly as written, every turn, whatever the outcome:
+
+```text
+Team member — reported (TEAM-REPORTED, ceremony:team-member); does not sign.
+Release Manager — no agent convened; freeze waiver applied by calendar rule.
+Scrum Master — chairs; does not sign.
+```
 
 ## Act 5 · The implementation, and the review of it
 

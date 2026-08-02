@@ -1,10 +1,11 @@
 #!/bin/sh
 # ceremony :: Stop
-# Thirty-one rules. M and V come first and are outside the correction budget:
-# the chair editing and a commit are the two failures worth their own allowance.
-# Then A to L and Y, Z, AF, in order, the first one tripped sending the turn
-# back. Then N to X and AA to AE plus AG, the chain of four eyes and the loop,
-# reported together in one message.
+# Thirty-six rules. M, V and AF come first and are outside the correction
+# budget: the chair editing, a commit, and an escalation that hands the user a
+# repair job are the three failures worth their own allowance.
+# Then A to L and Y, Z, in order, the first one tripped sending the turn back.
+# Then N to X and AA to AJ, the chain of four eyes and the loop, reported
+# together in one message.
 # A turn gets at most two ordinary corrections plus at most two exempt ones.
 # Finally, on the pass path only, the backlog is written.
 set -u
@@ -124,6 +125,35 @@ plu() {
     1) printf '1 %s' "$2" ;;
     *) printf '%s %s' "$1" "$3" ;;
   esac
+}
+
+# The wording the Engineer line takes, from the verdict. Rules P and X both name
+# that line and each used to carry its own copy of the mapping. They disagreed on
+# ENG-NO-CHANGE: P dictated a line X was certain to reject, and the turn spent its
+# whole budget writing the line one rule demanded and the other refused. One
+# mapping, read by both, is what makes that impossible rather than merely fixed.
+eng_shape() {
+  case "$1" in
+    ENG-IMPLEMENTED) printf 'implemented' ;;
+    ENG-BLOCKED)     printf 'not implemented' ;;
+    ENG-NO-CHANGE)   printf 'nothing to implement' ;;
+  esac
+}
+# And the whole line, for a verdict and a measurement. O and P both have to name
+# it and X is the rule that refuses it, so one builder is what keeps the three of
+# them saying the same thing. Counts belong to the implemented shape alone: an
+# engineer that moved files and then hit a blocker still signs 0 files, because
+# what the line reports is what its verdict delivered and not what is in the tree.
+eng_line() {
+  ESHAPE=$(eng_shape "$1")
+  if [ -z "$ESHAPE" ]; then
+    printf 'Engineer \\u2014 withheld (%s)' "${1:-role not convened}"
+  elif [ "$1" = ENG-IMPLEMENTED ]; then
+    printf 'Engineer \\u2014 %s (%s, ceremony:engineer) \\u00b7 %s, +%s \\u2212%s' \
+      "$ESHAPE" "$1" "$(plu "$2" file files)" "$3" "$4"
+  else
+    printf 'Engineer \\u2014 %s (%s, ceremony:engineer) \\u00b7 0 files' "$ESHAPE" "$1"
+  fi
 }
 
 # --- the backlog, in two halves that land at different moments ---------------
@@ -325,6 +355,24 @@ promote_restore() {
     fi
     rm -f "$PTMP" 2>/dev/null
   done
+  # And the pending file follows the backlog it was promoted into. Promotion can
+  # retire a pending id - the filed row keeps the id it was given, which is the
+  # whole point of it - and rule AC reads both files, so a retired id left behind
+  # in carry.jsonl is still on disk and is still demanded of every render after
+  # it. The row is moved onto the id that survived.
+  STMP="$PEND.sync.$$"
+  if awk -v bl="$BLF" "$jrow"'
+    BEGIN {
+      while ((getline line < bl) > 0) { k = key(line); if (k != "") live[k] = fld(line, "id") }
+      close(bl)
+    }
+    { k = key($0); id = fld($0, "id")
+      if (k != "" && id != "" && (k in live) && live[k] != id)
+        sub("\"id\":\"" id "\"", "\"id\":\"" live[k] "\"")
+      print }' "$PEND" > "$STMP" 2>/dev/null; then
+    cmp -s "$STMP" "$PEND" 2>/dev/null || mv "$STMP" "$PEND" 2>/dev/null
+  fi
+  rm -f "$STMP" 2>/dev/null
   lock_drop
   return 0
 }
@@ -501,7 +549,7 @@ CHECK=$(printf '\342\234\223')
 for tok in $(printf '%s' "$ACT7" | grep -F "$CHECK" 2>/dev/null | grep -o '[A-Z][A-Z0-9]*-[A-Z0-9-]*' 2>/dev/null | sort -u); do
   case "$tok" in CEREMONY-*|SIGN-OFF) continue ;; esac
   case " $SIGNING " in *" $tok "*) continue ;; esac
-  block "Act 7 gives a tick to $tok. $tok is not a signing token: it withholds.\\n\\nOnly these seven may carry a tick: PO-ACCEPT, ARCH-RECORDED, CAB-APPROVED, CAB-APPROVED-WITH-CONDITIONS, QA-PASS, SC-ALIGNED-WITH-RESERVATIONS, REV-MATCHES-CRITERIA. Every other token is written as: <Role> \\u2014 withheld ($tok).\\n\\nNo ENG-* token is among them and none ever will be: the Engineer implements and does not approve its own implementation. Its act 7 line is the fourth shape and carries no tick at all - Engineer \\u2014 implemented (ENG-IMPLEMENTED, ceremony:engineer) \\u00b7 <n> files, +<a> -<r>.\\n\\n$HATCH"
+  block "Act 7 gives a tick to $tok. $tok is not a signing token: it withholds.\\n\\nOnly these seven may carry a tick: PO-ACCEPT, ARCH-RECORDED, CAB-APPROVED, CAB-APPROVED-WITH-CONDITIONS, QA-PASS, SC-ALIGNED-WITH-RESERVATIONS, REV-MATCHES-CRITERIA. Every other token is written as: <Role> \\u2014 withheld ($tok).\\n\\nNo ENG-* token is among them and none ever will be: the Engineer implements and does not approve its own implementation. Its act 7 line is the fourth shape and carries no tick at all - $(eng_line ENG-IMPLEMENTED 3 48 12), with the counts the ledger measured.\\n\\n$HATCH"
 done
 
 # --- C: a clock time in act 7 ------------------------------------------------
@@ -510,7 +558,7 @@ done
 TOKRE=$(printf '%s %s' "$SIGNING" "$WITHHOLDING" | tr ' ' '|')
 BADTIME=$(printf '%s' "$ACT7" | grep -E "withheld|$TOKRE" 2>/dev/null | grep -o '[0-9][0-9]:[0-9][0-9]:[0-9][0-9]' 2>/dev/null | head -n 1)
 if [ -n "$BADTIME" ]; then
-  block "An act 7 line carries the time $BADTIME. Act 7 has no times in it.\\n\\nThe line shapes are exactly: <Role> $CHECK \\u2014 <TOKEN> (<agent_type>) and <Role> \\u2014 withheld (<TOKEN>) and <Role> \\u2014 withheld (role not convened), plus the fixed Release Manager line. The token and the agent type are the checkable parts; a time is not one of them.\\n\\n$HATCH"
+  block "An act 7 line carries the time $BADTIME. Act 7 has no times in it.\\n\\nThe line shapes are exactly: <Role> $CHECK \\u2014 <TOKEN> (<agent_type>) and <Role> \\u2014 withheld (<TOKEN>) and <Role> \\u2014 withheld (role not convened), plus the three fixed lines and the two roles that have shapes of their own - the Engineer's four, picked by its verdict, and the DevOps Engineer's five, picked by its own. Both are printed in the output style and neither carries a time either. The token and the agent type are the checkable parts; a time is not one of them.\\n\\n$HATCH"
 fi
 
 # --- D: a turn that changed files, rendered as though it had not -------------
@@ -585,7 +633,7 @@ if [ "$NCOND" -gt 0 ]; then
   NDISP=$(printf '%s' "$ACT4" | grep -c 'Disposition: *[0-9]' 2>/dev/null) || NDISP=0
   case "$NDISP" in ''|*[!0-9]*) NDISP=0 ;; esac
   if [ "$NDISP" -lt "$NCOND" ]; then
-    blockc "The Change Advisory Board raised $(plu "$NCOND" condition conditions) for $TICKET and act 4 carries $(plu "$NDISP" 'disposition line' 'disposition lines'). A condition nobody answered is decoration, and this ceremony is meant to be something other than decoration.\\n\\nEvery condition gets one line in act 4, numbered to match, in one of exactly three shapes:\\n  Disposition: <n> applied - <what was done>\\n  Disposition: <n> waived - <reason>\\n  Disposition: <n> carried - action item recorded (owner: <who> - due: <when>)\\n\\nA NICE condition may be waived in a few words. A MUST or SHOULD needs a reason with something in it. A carried condition also appears as an act 8 action item, with the same owner and the same due date. If you apply one, the code has moved since the board looked, so convene ceremony:qa again on the code as it now stands and render act 6 from that return.\\n\\n$HATCH"
+    blockc "The Change Advisory Board raised $(plu "$NCOND" condition conditions) for $TICKET and act 4 carries $(plu "$NDISP" 'disposition line' 'disposition lines'). A condition nobody answered is decoration, and this ceremony is meant to be something other than decoration.\\n\\nEvery condition gets one line in act 4, numbered to match, in one of exactly three shapes, filled here with an example of each:\\n  Disposition: 1 applied - the rollback note is on the ticket\\n  Disposition: 2 waived - the migration is additive and needs none\\n  Disposition: 3 carried - action item recorded (owner: Engineer - due: next sprint)\\n\\nA NICE condition may be waived in a few words. A MUST or SHOULD needs a reason with something in it. A carried condition also appears as an act 8 action item, with the same owner and the same due date. If you apply one, the code has moved since the board looked, so convene ceremony:qa again on the code as it now stands and render act 6 from that return.\\n\\n$HATCH"
   fi
 fi
 
@@ -634,7 +682,7 @@ fi
 # it. A turn that absorbed the blockage quietly did neither.
 if [ "$NBLK" -gt 0 ]; then
   if [ "$HASESC" = no ]; then
-    block "L \\u00b7 QA could not run $(plu "$NBLK" check checks) for $TICKET at all - they came back BLOCKED - and the response closes without saying so. A blocked check is not a passed check: an acceptance criterion is currently unverifiable, and the record has to carry that.\\n\\nceremony:devops has already sat on this and the mechanisms it could reach are exhausted, so what goes between act 8 and the closing line is the final-resort escalation, in this shape:\\n\\n\\u2501\\u2501\\u2501 ESCALATION - verification blocked, ceremony exhausted \\u2501\\u2501\\u2501\\nBlocker: <what is missing, in one line>\\nDiagnosis: <why, in one line>\\n  Sprint <n> \\u00b7 DevOps Engineer: <the command> - <what happened>\\nMechanisms exhausted: <the ones tried>. <what remains, or None remaining.>\\nUnverified: $(plu "$NBLK" 'acceptance check' 'acceptance checks'), all [ ] in act 6.\\nThe one command that would clear this:\\n  <the CEREMONY-OPS-COMMAND line, verbatim>\\nBacklog: <CER-BL-id> stays open until it does.\\nDecision required from the user: none. This is a report; the ticket stays carried.\\n\\nOne diagnosis line per ops attempt, quoting the command from its CEREMONY-OPS-TRIED line rather than a paraphrase. Then the closing line carries the verification clause: Work delivered: yes - Verification: blocked (escalated).\\n\\nThis is a report, not a stop and not a question. The work stays delivered, the blocker stays unrepaired, the ticket stays carried, and the turn ends without waiting for anything.\\n\\n$HATCH"
+    block "L \\u00b7 QA could not run $(plu "$NBLK" check checks) for $TICKET at all - they came back BLOCKED - and the response closes without saying so. A blocked check is not a passed check: an acceptance criterion is currently unverifiable, and the record has to carry that.\\n\\nceremony:devops has already sat on this and the mechanisms it could reach are exhausted, so what goes between act 8 and the closing line is the final-resort escalation, in this shape:\\n\\n\\u2501\\u2501\\u2501 ESCALATION - verification blocked, ceremony exhausted \\u2501\\u2501\\u2501\\nBlocker: no Elixir toolchain on PATH - mix unavailable\\nDiagnosis: mise pins a version for this project and it is not installed.\\n  Sprint 276 \\u00b7 DevOps Engineer: mise install - exit 1\\n  Sprint 277 \\u00b7 DevOps Engineer: just setup - recipe not found\\nMechanisms exhausted: mise \\u00b7 just. None remaining.\\nUnverified: $(plu "$NBLK" 'acceptance check' 'acceptance checks'), all [ ] in act 6.\\nThe one command that would clear this:\\n  mise install\\nBacklog: CER-BL-0003 stays open until it does.\\nDecision required from the user: none. This is a report; the ticket stays carried.\\n\\nThat is an example with every slot filled, and none of its values are yours: the blocker, the commands and the sprint numbers come from the ops returns on the ledger, the last command is the CEREMONY-OPS-COMMAND line verbatim, and the id is the one the plugin minted and handed back - quote that one or leave the Backlog line out. One diagnosis line per ops attempt, quoting the command from its CEREMONY-OPS-TRIED line rather than a paraphrase. Then the closing line carries the verification clause: Work delivered: yes - Verification: blocked (escalated).\\n\\nThis is a report, not a stop and not a question. The work stays delivered, the blocker stays unrepaired, the ticket stays carried, and the turn ends without waiting for anything.\\n\\n$HATCH"
   fi
   case "$MSG" in
     *'Verification: blocked'*) ;;
@@ -672,35 +720,6 @@ led_num() {
 num_or_zero() {
   case "${1:-}" in ''|*[!0-9]*) printf '0' ;; *) printf '%s' "$1" ;; esac
 }
-# The wording the Engineer line takes, from the verdict. Rules P and X both name
-# that line and each used to carry its own copy of the mapping. They disagreed on
-# ENG-NO-CHANGE: P dictated a line X was certain to reject, and the turn spent its
-# whole budget writing the line one rule demanded and the other refused. One
-# mapping, read by both, is what makes that impossible rather than merely fixed.
-eng_shape() {
-  case "$1" in
-    ENG-IMPLEMENTED) printf 'implemented' ;;
-    ENG-BLOCKED)     printf 'not implemented' ;;
-    ENG-NO-CHANGE)   printf 'nothing to implement' ;;
-  esac
-}
-# And the whole line, for a verdict and a measurement. O and P both have to name
-# it and X is the rule that refuses it, so one builder is what keeps the three of
-# them saying the same thing. Counts belong to the implemented shape alone: an
-# engineer that moved files and then hit a blocker still signs 0 files, because
-# what the line reports is what its verdict delivered and not what is in the tree.
-eng_line() {
-  ESHAPE=$(eng_shape "$1")
-  if [ -z "$ESHAPE" ]; then
-    printf 'Engineer \\u2014 withheld (%s)' "${1:-role not convened}"
-  elif [ "$1" = ENG-IMPLEMENTED ]; then
-    printf 'Engineer \\u2014 %s (%s, ceremony:engineer) \\u00b7 %s, +%s \\u2212%s' \
-      "$ESHAPE" "$1" "$(plu "$2" file files)" "$3" "$4"
-  else
-    printf 'Engineer \\u2014 %s (%s, ceremony:engineer) \\u00b7 0 files' "$ESHAPE" "$1"
-  fi
-}
-
 ENGV=$(printf '%s' "$MINE" | grep '"role":"engineer"' 2>/dev/null | tail -n 1 | sed -n 's/.*"verdict":"\([^"]*\)".*/\1/p')
 REVV=$(printf '%s' "$MINE" | grep '"role":"reviewer"' 2>/dev/null | tail -n 1 | sed -n 's/.*"verdict":"\([^"]*\)".*/\1/p')
 POV=$(printf '%s' "$MINE" | grep '"role":"product-owner"' 2>/dev/null | tail -n 1 | sed -n 's/.*"verdict":"\([^"]*\)".*/\1/p')
@@ -759,7 +778,7 @@ case "$ENGV" in
     done
     if [ -n "$SIGNED" ]; then
       ELINE=$(eng_line "$ENGV")
-      note "P \\u00b7 ceremony:engineer returned $ENGV on $TICKET and act 7 still ticks:$SIGNED.\\n\\nNothing was delivered for those signatures to be about. Every line in act 7 withholds on this turn, each with its own token in the brackets - a Product Owner that accepted the criteria still reads Product Owner \\u2014 withheld (PO-ACCEPT), because accepting criteria is not the same as signing off a change that was never made. The engineer line is the one that quotes its own outcome instead, in the wording its verdict picks:\\n\\n  $ELINE\\n\\nSay plainly, in act 5, what was asked for and what stopped it."
+      note "P \\u00b7 ceremony:engineer returned $ENGV on $TICKET and act 7 still ticks:$SIGNED.\\n\\nNothing was delivered for those signatures to be about. Every signing line in act 7 withholds on this turn, each with its own token in the brackets - a Product Owner that accepted the criteria still reads Product Owner \\u2014 withheld (PO-ACCEPT), because accepting criteria is not the same as signing off a change that was never made. The three fixed lines are not signatures and do not move: Team member, Release Manager and Scrum Master stay exactly as they are written on every other turn. The engineer line quotes its own outcome instead, in the wording its verdict picks:\\n\\n  $ELINE\\n\\nSay plainly, in act 5, what was asked for and what stopped it."
     fi
     ;;
 esac
@@ -786,7 +805,7 @@ if [ "$REVV" = REV-DEVIATES ] || [ "$REVV" = REV-INCOMPLETE ] || [ "$RDEV" -gt 0
   DEVSAY='is missing'
   if printf '%s' "$ACT5" | grep -q 'Deviations' 2>/dev/null; then HASDEV=yes; DEVSAY='is present'; fi
   if [ "$HASDEV" = no ] || [ "$NDEV" -lt "$RDEV" ]; then
-    note "R \\u00b7 ceremony:reviewer returned $REVV on $TICKET: $(plu "$RUNMET" criterion criteria) unmet and $(plu "$REXTRA" change changes) nothing asked for. Act 5 carries $NDEV of those $(plu "$RDEV" line lines), and the Deviations subsection $DEVSAY.\\n\\nAct 5 ends with a Deviations subsection, one line per finding, quoting the reviewer's own CEREMONY-CRIT lines:\\n  - <n> UNMET \\u00b7 <the criterion> \\u2014 <what is missing>\\n  - <n> EXTRA \\u00b7 <what was changed> \\u2014 <file:line>\\n\\nAn EXTRA is not an accusation and an UNMET is not a failure of the turn; both are the record saying what the diff does that the ticket did not ask for, or does not do that it did. And while any of them stands, the Product Owner line in act 7 withholds: the criteria are the Product Owner's, and they have not all been met."
+    note "R \\u00b7 ceremony:reviewer returned $REVV on $TICKET: $(plu "$RUNMET" criterion criteria) unmet and $(plu "$REXTRA" change changes) nothing asked for. Act 5 carries $NDEV of those $(plu "$RDEV" line lines), and the Deviations subsection $DEVSAY.\\n\\nAct 5 ends with a Deviations subsection, one line per finding, quoting the reviewer's own CEREMONY-CRIT lines. Two examples of the shape, one of each kind:\\n  - 2 UNMET \\u00b7 the page still builds \\u2014 the bundler was never run\\n  - 3 EXTRA \\u00b7 an unrelated import was tidied \\u2014 src/app.js:1\\n\\nAn EXTRA is not an accusation and an UNMET is not a failure of the turn; both are the record saying what the diff does that the ticket did not ask for, or does not do that it did. And while any of them stands, the Product Owner line in act 7 withholds: the criteria are the Product Owner's, and they have not all been met."
   fi
 fi
 
@@ -865,7 +884,7 @@ if [ -n "$ENGLINE" ]; then
   esac
   WANT=$(eng_shape "$ETOK")
   if [ -n "$ETOK" ] && [ -n "$SHAPE" ] && [ "$SHAPE" != "$WANT" ]; then
-    note "X \\u00b7 The Engineer line reads \\\"$SHAPE\\\" and quotes $ETOK, and those are two different outcomes. The line is one of exactly three, and the verdict picks which:\\n\\n  Engineer \\u2014 implemented (ENG-IMPLEMENTED, ceremony:engineer) \\u00b7 <n> files, +<a> \\u2212<r>\\n  Engineer \\u2014 not implemented (ENG-BLOCKED, ceremony:engineer) \\u00b7 0 files\\n  Engineer \\u2014 nothing to implement (ENG-NO-CHANGE, ceremony:engineer) \\u00b7 0 files\\n\\n$ETOK takes the line that reads \\\"$WANT\\\". Counts belong to the first shape only: a blocked engineer wrote nothing, so its line carries 0 files and no line counts, whatever else is in the working tree."
+    note "X \\u00b7 The Engineer line reads \\\"$SHAPE\\\" and quotes $ETOK, and those are two different outcomes. The line is one of exactly three, and the verdict picks which:\\n\\n  $(eng_line ENG-IMPLEMENTED 3 48 12)\\n  $(eng_line ENG-BLOCKED)\\n  $(eng_line ENG-NO-CHANGE)\\n\\n$ETOK takes the line that reads \\\"$WANT\\\". The counts on the first shape are the ledger's, and belong to that shape only: a blocked engineer wrote nothing, so its line carries 0 files and no line counts, whatever else is in the working tree."
   fi
   if [ "$ETOK" = ENG-BLOCKED ] || [ "$ETOK" = ENG-NO-CHANGE ]; then
     case "$ENGLINE" in
@@ -876,7 +895,7 @@ if [ -n "$ENGLINE" ]; then
   fi
 fi
 
-# --- the reviewer had something to read after all ---------------------------
+# --- AH: the reviewer had something to read after all ------------------------
 # REV-NOTHING-TO-REVIEW is correct at zero implementation entries and at no
 # other count. A non-git directory and a gitignored target both leave the
 # plugin unable to write implementation.diff, and a reviewer that reads the
@@ -920,7 +939,7 @@ if [ -n "$OPSLINE" ]; then
     OPS-NOTHING-TO-DO) OWANT='nothing to restore' ;;
   esac
   if [ -n "$OTOK" ] && [ -n "$OSHAPE" ] && [ "$OSHAPE" != "$OWANT" ]; then
-    note "AB \\u00b7 The DevOps Engineer line reads \\\"$OSHAPE\\\" and quotes $OTOK, and those are two different outcomes. The line is one of exactly five, and the verdict picks which:\\n\\n  DevOps Engineer \\u2014 restored (OPS-RESTORED, ceremony:devops) \\u00b7 <n> mechanisms\\n  DevOps Engineer \\u2014 not restored (OPS-BLOCKED, ceremony:devops) \\u00b7 <n> attempted\\n  DevOps Engineer \\u2014 change required (OPS-NEEDS-CHANGE, ceremony:devops) \\u00b7 <file> proposed\\n  DevOps Engineer \\u2014 nothing to restore (OPS-NOTHING-TO-DO, ceremony:devops) \\u00b7 0 attempted\\n  DevOps Engineer \\u2014 withheld (role not convened)\\n\\n$OTOK takes the line that reads \\\"$OWANT\\\". The angle-bracket slots are filled from the ledger and the nouns agree with what fills them: 1 mechanism, 2 mechanisms, and the file named on ceremony:devops's CEREMONY-OPS-CHANGE line. None of the five carries a tick, on any turn: ops restores, it does not approve, and the signature that matters after a restoration is QA's."
+    note "AB \\u00b7 The DevOps Engineer line reads \\\"$OSHAPE\\\" and quotes $OTOK, and those are two different outcomes. The line is one of exactly five, and the verdict picks which:\\n\\n  DevOps Engineer \\u2014 restored (OPS-RESTORED, ceremony:devops) \\u00b7 2 mechanisms\\n  DevOps Engineer \\u2014 not restored (OPS-BLOCKED, ceremony:devops) \\u00b7 2 attempted\\n  DevOps Engineer \\u2014 change required (OPS-NEEDS-CHANGE, ceremony:devops) \\u00b7 .mise.toml proposed\\n  DevOps Engineer \\u2014 nothing to restore (OPS-NOTHING-TO-DO, ceremony:devops)\\n  DevOps Engineer \\u2014 withheld (role not convened)\\n\\n$OTOK takes the line that reads \\\"$OWANT\\\". The counts are the ledger's and the nouns agree with them - 1 mechanism, 2 mechanisms - and the file is the one named on ceremony:devops's CEREMONY-OPS-CHANGE line. None of the five carries a tick, on any turn: ops restores, it does not approve, and the signature that matters after a restoration is QA's."
   fi
   case "$OPSLINE" in
     *"$CHECK"*)
@@ -988,7 +1007,11 @@ ROLLED=$(sed -n 's/^CEREMONY_ROLLED=//p' "$SENV" 2>/dev/null | tail -n 1)
 SHOWN=no
 printf '%s' "$MSG" | grep -qE 'SPRINT [0-9]+ CLOSED|opened in session' 2>/dev/null && SHOWN=yes
 if [ "$ROLLED" = yes ] && [ "$SHOWN" = no ]; then
-  note "AE \\u00b7 The sprint rolled and the response does not say so. The plugin incremented .ceremony/sprint-offset this turn and minted $CARRIED, because ceremony:devops named a mechanism nobody had tried.\\n\\nRender the roll between act 8 and the closing line, in this shape:\\n\\n\\u2501\\u2501\\u2501 SPRINT <n> CLOSED \\u00b7 carried \\u2501\\u2501\\u2501\\nCarried: $CARRIED \\u00b7 restore-verification \\u00b7 <the blocker in one line>\\nVerification withheld: $(plu "$NBLK" check checks). QA-BLOCKED stands; no signature was invented.\\n\\n\\u2501\\u2501\\u2501 SPRINT <n+1> \\u00b7 opened in session \\u00b7 day 1 of 14 \\u2501\\u2501\\u2501\\nPlanning: $CARRIED (<n> pts) - the only item. Scope unchanged from $TICKET.\\nDevOps Engineer \\u00b7 attempt 2 \\u00b7 mechanism: <the one named next> - <its verdict>\\nQA Sign-off Officer \\u00b7 re-run \\u00b7 <what came back>\\nSprint <n+1> closed. <whether a mechanism remains>\\n\\nThe next sprint is one iteration of the loop, not a second ceremony: ops attempt 2 and a QA re-run, and not eight more acts."
+  # The sprint the roll closed is the one the turn opened on: the offset was
+  # incremented after the turn state wrote this number down.
+  AESPR=$(sed -n 's/^CEREMONY_SPRINT=//p' "$SENV" 2>/dev/null | tail -n 1)
+  AESPR=$(num_or_zero "$AESPR")
+  note "AE \\u00b7 The sprint rolled and the response does not say so. The plugin incremented .ceremony/sprint-offset this turn and minted $CARRIED, because ceremony:devops named a mechanism nobody had tried.\\n\\nRender the roll between act 8 and the closing line, in this shape, filled here with an example of every slot the record fills:\\n\\n\\u2501\\u2501\\u2501 SPRINT $AESPR CLOSED \\u00b7 carried \\u2501\\u2501\\u2501\\nCarried: $CARRIED \\u00b7 restore-verification \\u00b7 Elixir toolchain not installed\\nVerification withheld: $(plu "$NBLK" check checks). QA-BLOCKED stands; no signature was invented.\\n\\n\\u2501\\u2501\\u2501 SPRINT $((AESPR + 1)) \\u00b7 opened in session \\u00b7 day 1 of 14 \\u2501\\u2501\\u2501\\nPlanning: $CARRIED (3 pts) - the only item. Scope unchanged from $TICKET.\\nDevOps Engineer \\u00b7 attempt 2 \\u00b7 mechanism: just setup - OPS-BLOCKED\\nQA Sign-off Officer \\u00b7 re-run \\u00b7 $(plu "$NBLK" check checks) still BLOCKED - QA-BLOCKED\\nSprint $((AESPR + 1)) closed. No mechanism remains untried.\\n\\nThe sprint numbers and the id are yours to copy; the blocker, the mechanism, the estimate and both verdicts are the ledger's, and the example values above stand in for them. The next sprint is one iteration of the loop, not a second ceremony: ops attempt 2 and a QA re-run, and not eight more acts."
 fi
 if [ "$ROLLED" = no ] && [ "$SHOWN" = yes ]; then
   note "AE \\u00b7 The response renders a sprint roll and no roll happened. .ceremony/sprint-offset was not incremented on this turn, so the sprint number in the header is the one the ceremony is really on and there is no closed sprint to report.\\n\\nThe loop advances only on a mechanism nobody has tried. The plugin decides that, from ceremony:devops's CEREMONY-OPS-NEXT line, and it writes the offset itself: a roll you narrate is a sprint number that exists only in the prose, and the next turn will not agree with it. With CEREMONY-OPS-NEXT: none there is no roll - the escalation goes to the user as a report and the ticket stays carried where it is."
@@ -1084,7 +1107,7 @@ if [ -n "$EXPECT" ] && [ -n "$HDR" ]; then
       PREFIX=${EXPECT%%"$TICKET"*}"$TICKET"
       case "$HDR" in
         "$PREFIX"*) ;;
-        *) note "U \\u00b7 The header does not match the one the turn state handed over. It reads:\\n  $HDR\\nand the line to copy was:\\n  $EXPECT\\n\\nEverything up to the points clause is already filled in and is copied character for character - the sprint number and the ticket id are derived once, by a hook, before you were called. The slot after the sprint holds $TICKET and never a command name, a file name or a description of the request. Only <pts> is yours to fill in, from the Product Owner's estimate." ;;
+        *) note "U \\u00b7 The header does not match the one the turn state handed over. It reads:\\n  $HDR\\nand the line to copy was:\\n  $EXPECT\\n\\nEverything up to the points clause is already filled in and is copied character for character - the sprint number and the ticket id are derived once, by a hook, before you were called. The slot after the sprint holds $TICKET and never a command name, a file name or a description of the request. Only the points clause is yours to fill in, from the Product Owner's estimate." ;;
       esac
       ;;
   esac
