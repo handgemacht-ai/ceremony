@@ -24,7 +24,7 @@ stop. The ids are real or they are nothing.
 ## 2. Close the sprint that is ending
 
 ```text
-━━━ SPRINT <n> CLOSED · carried ━━━
+━━━ SPRINT 276 CLOSED · carried ━━━
 Carried: CER-BL-0003 · restore-verification · Elixir toolchain not installed
 Verification withheld: 4 checks. QA-BLOCKED stands; no signature was invented.
 ```
@@ -35,11 +35,11 @@ quotes the count from the ledger. Nothing here is estimated.
 ## 3. Open the next one and run the narrow cycle
 
 ```text
-━━━ SPRINT <n+1> · opened in session · day 1 of 14 ━━━
+━━━ SPRINT 277 · opened in session · day 1 of 14 ━━━
 Planning: CER-BL-0003 (3 pts) — the only item. Scope unchanged from CER-276-03.
 DevOps Engineer · attempt 2 · mechanism: just setup — OPS-BLOCKED
 QA Sign-off Officer · re-run · 4 checks still BLOCKED — QA-BLOCKED
-Sprint <n+1> closed. No mechanism remains untried.
+Sprint 277 closed. No mechanism remains untried.
 ```
 
 **Two agents, in this order, and no others.** Convene `ceremony:devops` with the
